@@ -1,0 +1,152 @@
+/* ==========================================================================
+   Excel data loader — reads the two master workbooks directly in the browser
+   using SheetJS, so HR only ever has to replace 2 files:
+     data/Recruitment_Requisition.xlsx
+     data/Subcontract_Overview.xlsx
+   No CSV export step required. Parsing logic mirrors what was verified
+   against the real files during development.
+   ========================================================================== */
+
+/** Format a cell value for display/storage: Date -> 'YYYY-MM-DD', else trimmed string. */
+function xClean(v) {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) {
+    const y = v.getFullYear(), m = String(v.getMonth() + 1).padStart(2, '0'), d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(v).trim();
+}
+
+function normCompany(c) {
+  c = xClean(c);
+  const u = c.toUpperCase();
+  if (u === 'HRD' || u === 'HR DIGEST' || u === 'HR-DIGEST') return 'HR Digest';
+  return c;
+}
+
+/** Fetch and parse an .xlsx file into a SheetJS workbook. Cache-busted so HR's
+ * monthly re-uploads (same filename) are picked up immediately. */
+async function loadWorkbook(path) {
+  const res = await fetch(path + '?v=' + Date.now());
+  if (!res.ok) throw new Error('Cannot load ' + path);
+  const buf = await res.arrayBuffer();
+  return XLSX.read(buf, { type: 'array', cellDates: true });
+}
+
+/** Parse Recruitment_Requisition.xlsx -> array of permanent-recruitment row objects. */
+function parsePermanentWorkbook(wb) {
+  const ws = wb.Sheets['Recruitment'];
+  if (!ws) throw new Error('Sheet "Recruitment" not found in Recruitment_Requisition.xlsx');
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+  const monthMap = { 'March': 'Mar', 'June': 'Jun' };
+  const out = [];
+  for (const row of rows) {
+    if (row['Year'] == null && row['Position_Announce'] == null) continue; // blank row
+    let month = row['Month'];
+    if (month) {
+      const m = String(month).trim();
+      month = monthMap[m] || m;
+    }
+    const ptype = xClean(row['Type']);
+    let typeGroup = '';
+    if (ptype === 'O-General' || ptype === 'S-General') typeGroup = 'General';
+    else if (ptype === 'S-Special') typeGroup = 'Special';
+
+    out.push({
+      year: xClean(row['Year']), month: xClean(month), location: xClean(row['Location']),
+      type: ptype, type_group: typeGroup,
+      status: xClean(row['Recruitment Status']),
+      position: xClean(row['Position_Announce']) || xClean(row['Position_Request']),
+      channel: xClean(row['Recruitment Channel']),
+      approved_date: xClean(row['Approved_Date']), target_date: xClean(row['Target_Date']), final_date: xClean(row['Final Date']),
+      diff_days: xClean(row['Diff Date']), kpi: xClean(row['KPI']),
+    });
+  }
+  return out;
+}
+
+/** Parse Subcontract_Overview.xlsx -> { recruitment, turnover, turnoverMonthly, employees }. */
+function parseSubcontractWorkbook(wb) {
+  // --- Recruitment ---
+  const wsRec = wb.Sheets['Recruitment'];
+  const recRows = wsRec ? XLSX.utils.sheet_to_json(wsRec, { defval: null }) : [];
+  const recruitment = [];
+  for (const row of recRows) {
+    if (row['position'] == null) continue;
+    recruitment.push({
+      year: xClean(row['year']), company: normCompany(row['company']), position: xClean(row['position']),
+      work_unit: xClean(row['Work Unit']), dept: xClean(row['Dept']), division: xClean(row['Division']),
+      business_line: xClean(row['businessLine']), send_date: xClean(row['Send Requirement']),
+      return_date: xClean(row['Return Date']), diff_days: xClean(row['Diff Date']),
+      interview_date: xClean(row['interviewDate']), confirm_date: xClean(row['confirmDate']),
+      start_date: xClean(row['startDate']), status: xClean(row['status']), hired_age: xClean(row['Hired_Age']),
+    });
+  }
+
+  // --- Turnover (individual records, anonymized — no name column read) ---
+  const wsTurn = wb.Sheets['Turnover'];
+  const turnRows = wsTurn ? XLSX.utils.sheet_to_json(wsTurn, { defval: null }) : [];
+  const turnover = [];
+  for (const row of turnRows) {
+    if (row['วันที่มีผล'] == null) continue;
+    turnover.push({
+      effective_date: xClean(row['วันที่มีผล']), position: xClean(row['ตำแหน่ง']), division: xClean(row['ฝ่าย']),
+      department: xClean(row['ส่วน']), work_unit: xClean(row['หน่วยงาน']), start_date: xClean(row['วันเข้างาน']),
+      age: xClean(row['อายุตัว']), tenure_years: xClean(row['อายุงาน']), reason: xClean(row['เหตุผลการลาออก']),
+    });
+  }
+
+  // --- Turnover_Graph (pre-computed monthly summary; range N2:AB20, headers on row 3) ---
+  const wsTG = wb.Sheets['Turnover_Graph'];
+  const turnoverMonthly = [];
+  if (wsTG) {
+    const raw = XLSX.utils.sheet_to_json(wsTG, { header: 1, defval: null });
+    // Array indices are relative to the sheet's used range (starts at column N),
+    // so index 2 = column P ("เดือน"), verified against the source file.
+    for (let i = 2; i <= 13; i++) {
+      const r = raw[i];
+      if (!r) continue;
+      const month = xClean(r[2]);
+      if (!month) continue;
+      turnoverMonthly.push({
+        month,
+        resigned_2025: xClean(r[3]), headcount_2025: xClean(r[4]), turnover_rate_2025: xClean(r[5]),
+        resigned_2026: xClean(r[9]), headcount_2026: xClean(r[10]), turnover_rate_2026: xClean(r[11]),
+      });
+    }
+  }
+
+  // --- Employees (PII stripped: no national ID / phone / email / salary / cost center) ---
+  function extractEmployees(sheetName, companyLabel) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) return [];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+    const out = [];
+    for (const row of rows) {
+      if (row['ชื่อนาม-สกุล'] == null) continue;
+      out.push({
+        company: companyLabel, name: xClean(row['ชื่อนาม-สกุล']), position: xClean(row['ตำแหน่ง']),
+        division: xClean(row['ฝ่าย']), department: xClean(row['ส่วน']), work_unit: xClean(row['หน่วยงาน']),
+        location: xClean(row['สถานที่ทำงาน']), start_date: xClean(row['วันเริ่มงาน']),
+        age: xClean(row['อายุตัว']), tenure_years: xClean(row['อายุงาน']),
+      });
+    }
+    return out;
+  }
+  const employees = extractEmployees('รายชื่อพนักงาน Manpower', 'Manpower')
+    .concat(extractEmployees('รายชื่อพนักงาน HRD', 'HR Digest'));
+
+  return { recruitment, turnover, turnoverMonthly, employees };
+}
+
+/** Convenience: load + parse the permanent-recruitment workbook in one call. */
+async function loadPermanentData(path) {
+  const wb = await loadWorkbook(path);
+  return parsePermanentWorkbook(wb);
+}
+
+/** Convenience: load + parse the subcontract workbook in one call. */
+async function loadSubcontractData(path) {
+  const wb = await loadWorkbook(path);
+  return parseSubcontractWorkbook(wb);
+}
