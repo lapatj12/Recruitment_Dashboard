@@ -41,25 +41,49 @@
     <div class="kpi-grid" id="kpiGrid"></div>
 
     <div class="panel-grid">
-      <div class="panel">
-        <h3>KPI by Position Type (Effective)</h3>
-        <p class="panel-sub">General = O-General + S-General · Special = S-Special · Click a bar to see the position list</p>
-        <div class="chart-wrap"><canvas id="chartType"></canvas></div>
-      </div>
-      <div class="panel">
-        <h3>Recruitment Channel</h3>
-        <p class="panel-sub">Channels that resulted in a hire (Effective status) · Click a bar to see the position list</p>
-        <div class="chart-wrap"><canvas id="chartChannel"></canvas></div>
+      <div class="panel donut-panel">
+        <h3>KPI Performance</h3>
+        <p class="panel-sub">Share of Effective positions closed on-KPI vs over-KPI, by position type</p>
+        <div class="donut-card-row">
+          <div class="donut-card" id="kpiDonutSpecial">
+            <div class="donut-card-head">
+              <span class="donut-card-title">KPI Performance</span>
+              <span class="pill pill-badge" style="background:var(--violet-soft);color:var(--violet);">Special</span>
+            </div>
+            <div class="donut-card-body">
+              <div class="donut-chart-wrap"><canvas id="chartKpiSpecial"></canvas></div>
+              <ul class="donut-legend" id="legendSpecial"></ul>
+            </div>
+          </div>
+          <div class="donut-card" id="kpiDonutGeneral">
+            <div class="donut-card-head">
+              <span class="donut-card-title">KPI Performance</span>
+              <span class="pill pill-badge" style="background:var(--accent-soft);color:var(--accent-dark);">General</span>
+            </div>
+            <div class="donut-card-body">
+              <div class="donut-chart-wrap"><canvas id="chartKpiGeneral"></canvas></div>
+              <ul class="donut-legend" id="legendGeneral"></ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="panel-grid" style="margin-top:16px;">
       <div class="panel">
+        <h3>Recruitment Channel</h3>
+        <p class="panel-sub">Channels that resulted in a hire (Effective status) · Click a bar to see the position list</p>
+        <div class="chart-wrap"><canvas id="chartChannel"></canvas></div>
+      </div>
+      <div class="panel">
         <h3>Recruitment Status Over Time</h3>
         <p class="panel-sub">Number of positions by month and status</p>
         <div class="chart-wrap"><canvas id="chartTrend"></canvas></div>
       </div>
-      <div class="panel">
+    </div>
+
+    <div class="panel-grid" style="margin-top:16px;">
+      <div class="panel" style="grid-column: 1 / -1;">
         <h3>Avg. Time-to-Hire by Location</h3>
         <p class="panel-sub">Average number of days from approval to final close (Effective only)</p>
         <div class="chart-wrap"><canvas id="chartTTH"></canvas></div>
