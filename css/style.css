@@ -220,6 +220,44 @@ table.data-table tbody tr:hover { background: var(--bg); }
 
 .footer-note { text-align: center; color: var(--ink-faint); font-size: 12px; padding: 20px; }
 
+/* -------------------- Donut KPI performance cards -------------------- */
+.donut-panel { padding-bottom: 22px; }
+.donut-panel .panel-sub { margin-bottom: 22px; }
+.donut-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 720px) { .donut-card-row { grid-template-columns: 1fr; } }
+
+.donut-card {
+  border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 26px 28px;
+  background: var(--bg);
+}
+.donut-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.donut-card-title { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--ink); }
+.pill-badge { font-weight: 700; padding: 4px 14px; font-size: 12px; }
+
+.donut-card-body { display: flex; align-items: center; gap: 30px; }
+.donut-chart-wrap { position: relative; width: 148px; height: 148px; flex: none; }
+.donut-center-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.donut-center-label .pct { font-family: var(--font-num); font-size: 27px; font-weight: 700; color: var(--ink); line-height: 1; }
+.donut-center-label .cap { font-size: 10.5px; color: var(--ink-faint); font-weight: 600; letter-spacing: .05em; margin-top: 5px; }
+
+.donut-legend { list-style: none; margin: 0; padding: 0; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.donut-legend li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.donut-legend .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.donut-legend .lbl { color: var(--ink-soft); flex: 1; }
+.donut-legend .val { font-family: var(--font-num); font-weight: 700; color: var(--ink); font-size: 14px; }
+.donut-legend .sub { color: var(--ink-faint); font-size: 11.5px; margin-left: 6px; min-width: 30px; text-align: right; }
+
+/* -------------------- Satisfaction comments -------------------- */
+.comments-list { display: flex; flex-direction: column; gap: 12px; max-height: 480px; overflow-y: auto; padding-right: 4px; }
+.comment-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px 16px; background: var(--bg); }
+.comment-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.comment-position { font-family: var(--font-display); font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.comment-date { font-size: 11.5px; color: var(--ink-faint); }
+.comment-row { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin-top: 6px; }
+.comment-tag { flex: none; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 2px 8px; border-radius: 999px; margin-top: 1px; }
+.comment-tag.good { background: var(--teal-soft); color: var(--teal); }
+.comment-tag.improve { background: var(--amber-soft); color: var(--amber); }
+
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #D9D3C5; border-radius: 8px; }
