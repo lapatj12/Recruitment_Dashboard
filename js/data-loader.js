@@ -58,11 +58,56 @@ function parsePermanentWorkbook(wb) {
       status: xClean(row['Recruitment Status']),
       position: xClean(row['Position_Announce']) || xClean(row['Position_Request']),
       channel: xClean(row['Recruitment Channel']),
+      division: xClean(row['Division']), dept: xClean(row['Dept']),
       approved_date: xClean(row['Approved_Date']), target_date: xClean(row['Target_Date']), final_date: xClean(row['Final Date']),
       diff_days: xClean(row['Diff Date']), kpi: xClean(row['KPI']),
     });
   }
   return out;
+}
+
+/** Parse Recruitment_Service_Quality_Evaluation.xlsx -> array of survey response objects.
+ * Personal identifiers (Name, Email) are intentionally not extracted — only the
+ * fields needed for aggregate reporting (scores, position, comments, date). */
+function parseSatisfactionWorkbook(wb) {
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  if (!ws) return [];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+  if (!rows.length) return [];
+  const headers = Object.keys(rows[0]);
+  const findHeader = (marker) => headers.find(h => h.includes(marker));
+
+  const hQ1 = findHeader('2.1');   // Recruitment quality: candidates matched requirements
+  const hQ2 = findHeader('2.2');   // Recruitment quality: timeline was appropriate
+  const hS1 = findHeader('3.1');   // Service: responsive to feedback
+  const hS2 = findHeader('3.2');   // Service: kept requester updated
+  const hPos = headers.find(h => h.trim() === 'ตำแหน่งที่สรรหา');
+  const hImpressed = findHeader('ประทับ');
+  const hImprove = findHeader('ปรับปรุง');
+
+  const out = [];
+  for (const row of rows) {
+    const date = xClean(row['Start time']);
+    if (!date) continue;
+    out.push({
+      date,
+      position: xClean(row[hPos]),
+      q_quality_1: Number(row[hQ1]) || null,
+      q_quality_2: Number(row[hQ2]) || null,
+      q_service_1: Number(row[hS1]) || null,
+      q_service_2: Number(row[hS2]) || null,
+      impressed: xClean(row[hImpressed]),
+      improve: xClean(row[hImprove]),
+    });
+  }
+  return out;
+}
+
+/** Convenience: load + parse the satisfaction survey workbook in one call. */
+async function loadSatisfactionData(path) {
+  const wb = await loadWorkbook(path);
+  return parseSatisfactionWorkbook(wb);
 }
 
 /** Parse Subcontract_Overview.xlsx -> { recruitment, turnover, turnoverMonthly, employees }. */
