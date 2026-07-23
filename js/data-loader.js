@@ -1,8 +1,9 @@
 /* ==========================================================================
-   Excel data loader — reads the two master workbooks directly in the browser
-   using SheetJS, so HR only ever has to replace 2 files:
+   Excel data loader — reads the three master workbooks directly in the
+   browser using SheetJS, so HR only ever has to replace these files:
      data/Recruitment_Requisition.xlsx
      data/Subcontract_Overview.xlsx
+     data/Recruitment_Service_Quality_Evaluation.xlsx
    No CSV export step required. Parsing logic mirrors what was verified
    against the real files during development.
    ========================================================================== */
@@ -170,7 +171,7 @@ function parseSubcontractWorkbook(wb) {
     for (const row of rows) {
       if (row['ชื่อนาม-สกุล'] == null) continue;
       out.push({
-        company: companyLabel, name: xClean(row['ชื่อนาม-สกุล']), position: xClean(row['ตำแหน่ง']),
+        company: companyLabel, employee_id: xClean(row['รหัสพนักงาน']), name: xClean(row['ชื่อนาม-สกุล']), position: xClean(row['ตำแหน่ง']),
         division: xClean(row['ฝ่าย']), department: xClean(row['ส่วน']), work_unit: xClean(row['หน่วยงาน']),
         location: xClean(row['สถานที่ทำงาน']), start_date: xClean(row['วันเริ่มงาน']),
         age: xClean(row['อายุตัว']), tenure_years: xClean(row['อายุงาน']),

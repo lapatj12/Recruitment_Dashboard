@@ -341,7 +341,20 @@ let empSort = { key: 'name', dir: 1 };
 let empPage = 0;
 const EMP_PAGE_SIZE = 15;
 
+let empFilters = { company: null, division: null, department: null };
+let msEmp = {};
+
 function initEmployeeTable() {
+  buildEmpCompanyFilter();
+  rebuildEmpDivisionFilter();
+  document.getElementById('resetEmpFilters').addEventListener('click', () => {
+    msEmp.company.clear();
+    empFilters.company = null;
+    rebuildEmpDivisionFilter();
+    empPage = 0;
+    renderEmployeeTable();
+  });
+
   document.getElementById('empSearch').addEventListener('input', () => { empPage = 0; renderEmployeeTable(); });
   document.querySelectorAll('#empTable thead th').forEach(th => {
     th.addEventListener('click', () => {
@@ -355,9 +368,66 @@ function initEmployeeTable() {
   renderEmployeeTable();
 }
 
+function buildEmpCompanyFilter() {
+  const bar = document.getElementById('filterBarEmployees');
+  const actions = bar.querySelector('.filter-actions');
+  const ctrl = buildMultiSelect(bar, 'Company', uniqueSorted(EMP, 'company'), sel => {
+    empFilters.company = sel;
+    rebuildEmpDivisionFilter();
+    empPage = 0;
+    renderEmployeeTable();
+  });
+  bar.insertBefore(ctrl.el, actions);
+  msEmp.company = ctrl;
+}
+
+/** Division options narrow to the selected Company; Department options narrow to
+ * the selected Company + Division. Both are derived live from the employee data
+ * (no hardcoded org-chart mapping), so they stay correct as the roster changes. */
+function rebuildEmpDivisionFilter() {
+  const bar = document.getElementById('filterBarEmployees');
+  const actions = bar.querySelector('.filter-actions');
+  if (msEmp.division) msEmp.division.el.remove();
+
+  const scoped = empFilters.company ? EMP.filter(r => empFilters.company.has(r.company)) : EMP;
+  empFilters.division = null;
+  const ctrl = buildMultiSelect(bar, 'Division', uniqueSorted(scoped, 'division'), sel => {
+    empFilters.division = sel;
+    rebuildEmpDepartmentFilter();
+    empPage = 0;
+    renderEmployeeTable();
+  }, tr);
+  bar.insertBefore(ctrl.el, actions);
+  msEmp.division = ctrl;
+  rebuildEmpDepartmentFilter();
+}
+
+function rebuildEmpDepartmentFilter() {
+  const bar = document.getElementById('filterBarEmployees');
+  const actions = bar.querySelector('.filter-actions');
+  if (msEmp.department) msEmp.department.el.remove();
+
+  let scoped = empFilters.company ? EMP.filter(r => empFilters.company.has(r.company)) : EMP;
+  if (empFilters.division) scoped = scoped.filter(r => empFilters.division.has(r.division));
+  empFilters.department = null;
+  const ctrl = buildMultiSelect(bar, 'Department', uniqueSorted(scoped, 'department'), sel => {
+    empFilters.department = sel;
+    empPage = 0;
+    renderEmployeeTable();
+  }, tr);
+  bar.insertBefore(ctrl.el, actions);
+  msEmp.department = ctrl;
+}
+
 function renderEmployeeTable() {
   const q = document.getElementById('empSearch').value.trim().toLowerCase();
-  let rows = EMP.filter(r => !q || [r.name, r.position, r.division, r.department, r.work_unit].some(v => (v||'').toLowerCase().includes(q)));
+  let rows = EMP.filter(r => {
+    if (empFilters.company && !empFilters.company.has(r.company)) return false;
+    if (empFilters.division && !empFilters.division.has(r.division)) return false;
+    if (empFilters.department && !empFilters.department.has(r.department)) return false;
+    if (q && ![r.employee_id, r.name, r.position, r.division, r.department, r.work_unit].some(v => (v || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
 
   rows = rows.slice().sort((a, b) => {
     const av = empSort.key === 'age' || empSort.key === 'tenure_years' ? Number(a[empSort.key])||0 : (a[empSort.key]||'');
@@ -375,9 +445,11 @@ function renderEmployeeTable() {
     const pillColor = r.company === 'Manpower' ? 'var(--teal-soft);color:var(--teal)' : 'var(--blue-soft);color:var(--blue)';
     return `<tr>
       <td><span class="pill" style="background:${pillColor}">${r.company}</span></td>
+      <td class="tnum">${r.employee_id || '–'}</td>
       <td>${r.name}</td>
       <td>${tr(r.position)}</td>
       <td>${tr(r.division)}</td>
+      <td>${tr(r.department)}</td>
       <td>${tr(r.work_unit)}</td>
       <td>${tr(r.location)}</td>
       <td class="tnum">${r.age || '–'}</td>
