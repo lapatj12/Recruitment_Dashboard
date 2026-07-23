@@ -189,7 +189,8 @@ function buildMultiSelect(container, label, options, onChange, labelFn) {
 
   return {
     clear: () => { selected.clear(); panel.querySelectorAll('input').forEach(i => i.checked = false); refreshBtn(); },
-    getSelected: () => selected
+    getSelected: () => selected,
+    el: wrap
   };
 }
 

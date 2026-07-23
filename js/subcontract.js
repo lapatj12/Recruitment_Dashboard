@@ -55,21 +55,42 @@ let msOverview = {};
 function initOverview() {
   const bar = document.getElementById('filterBarOverview');
   const actions = bar.querySelector('.filter-actions');
-  [
-    { key: 'company', label: 'Company', field: 'company' },
-    { key: 'division', label: 'Division', field: 'division' },
-  ].forEach(d => {
-    const opts = uniqueSorted(EMP, d.field);
-    const ctrl = buildMultiSelect(bar, d.label, opts, sel => { overviewFilters[d.key] = sel; renderOverview(); }, d.field === 'division' ? tr : (v => v));
-    bar.insertBefore(bar.lastElementChild, actions);
-    msOverview[d.key] = ctrl;
+
+  const companyCtrl = buildMultiSelect(bar, 'Company', uniqueSorted(EMP, 'company'), sel => {
+    overviewFilters.company = sel;
+    rebuildDivisionFilter(); // Division options narrow to only what exists for the selected company
+    renderOverview();
   });
+  bar.insertBefore(bar.lastElementChild, actions);
+  msOverview.company = companyCtrl;
+
+  rebuildDivisionFilter();
+
   document.getElementById('resetOverview').addEventListener('click', () => {
-    Object.values(msOverview).forEach(c => c.clear());
-    overviewFilters = { company: null, division: null };
+    msOverview.company.clear();
+    overviewFilters.company = null;
+    rebuildDivisionFilter();
     renderOverview();
   });
   renderOverview();
+}
+
+/** Rebuilds the Division filter's option list to only include divisions that
+ * actually appear for the currently-selected Company (derived live from the
+ * employee data, so it stays correct even if the org structure changes next
+ * month — no hardcoded company/division mapping to maintain). */
+function rebuildDivisionFilter() {
+  const bar = document.getElementById('filterBarOverview');
+  const actions = bar.querySelector('.filter-actions');
+  if (msOverview.division) { msOverview.division.el.remove(); }
+
+  const scoped = overviewFilters.company ? EMP.filter(r => overviewFilters.company.has(r.company)) : EMP;
+  const divisionOpts = uniqueSorted(scoped, 'division');
+  overviewFilters.division = null;
+
+  const ctrl = buildMultiSelect(bar, 'Division', divisionOpts, sel => { overviewFilters.division = sel; renderOverview(); }, tr);
+  bar.insertBefore(ctrl.el, actions);
+  msOverview.division = ctrl;
 }
 
 function renderOverview() {
