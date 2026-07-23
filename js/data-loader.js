@@ -186,6 +186,40 @@ function parseSubcontractWorkbook(wb) {
 }
 
 /** Convenience: load + parse the permanent-recruitment workbook in one call. */
+/** Parse the "Cost Per Hire" sheet in Recruitment_Requisition.xlsx — a hand-built
+ * annual cost summary (not a row-per-hire log), so this reads the 3 final
+ * cost-per-hire figures per position type by searching for their row labels
+ * (resilient to rows being inserted/reordered above them) rather than assuming
+ * fixed cell addresses. Returns null if the sheet or expected labels are missing. */
+function parseCostPerHireSheet(wb) {
+  const ws = wb.Sheets['Cost Per Hire'];
+  if (!ws) return null;
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+  let context = '';
+  for (const row of raw) {
+    if (row[0] && String(row[0]).includes('Total Hire')) { context = xClean(row[0]); break; }
+  }
+
+  function findRow(markers) {
+    for (const row of raw) {
+      const label = xClean(row[0]).toLowerCase().replace(/\s+/g, '');
+      if (markers.includes(label)) {
+        return { exclMedical: xClean(row[1]), inclMedicalMen: xClean(row[2]), inclMedicalWomen: xClean(row[3]) };
+      }
+    }
+    return null;
+  }
+
+  const oGeneral = findRow(['o-general']);
+  const sGeneral = findRow(['s-general']);
+  const sSpecial = findRow(['s-special']);
+  if (!oGeneral && !sGeneral && !sSpecial) return null;
+
+  return { context, oGeneral, sGeneral, sSpecial };
+}
+
+/** Convenience: load + parse the permanent-recruitment workbook in one call. */
 async function loadPermanentData(path) {
   const wb = await loadWorkbook(path);
   return parsePermanentWorkbook(wb);

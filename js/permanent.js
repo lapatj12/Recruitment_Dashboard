@@ -6,17 +6,20 @@ const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 
 let RAW = [];
 let SAT = [];
+let COST = null;
 let filters = { location: null, year: null, month: null, status: null, kpi: null, position: null };
 let satFilters = { position: null, month: null };
 let charts = {};
 let activeTab = 'overview';
 
 async function init() {
-  [RAW, SAT] = await Promise.all([
-    loadPermanentData('data/Recruitment_Requisition.xlsx'),
+  const [wbPermanent, SATLoaded] = await Promise.all([
+    loadWorkbook('data/Recruitment_Requisition.xlsx'),
     loadSatisfactionData('data/Recruitment_Service_Quality_Evaluation.xlsx'),
   ]);
-  RAW = RAW.filter(r => r.position || r.status);
+  RAW = parsePermanentWorkbook(wbPermanent).filter(r => r.position || r.status);
+  SAT = SATLoaded;
+  COST = parseCostPerHireSheet(wbPermanent);
 
   buildFilters();
   buildSatFilters();
@@ -84,6 +87,7 @@ function renderActiveTab() {
       run(renderEffectiveRateChart, data);
       run(renderTTHTrendChart, data);
       run(renderDivisionChart, data);
+      run(renderCostPerHire);
       break;
   }
 }
@@ -598,6 +602,46 @@ function renderDivisionChart(data) {
     },
     plugins: [ChartDataLabels]
   });
+}
+
+/** Renders the Cost Per Hire summary. This comes from a hand-built annual
+ * calculation sheet (not a per-hire log), so it's shown as-is — it does not
+ * react to the Location/Year/Month/Status/KPI/Position filters above, since
+ * the source data has no such breakdown to filter by. */
+function renderCostPerHire() {
+  const panel = document.getElementById('costPerHirePanel');
+  const context = document.getElementById('costPerHireContext');
+  const body = document.getElementById('costPerHireBody');
+  if (!panel) return;
+
+  if (!COST || (!COST.oGeneral && !COST.sGeneral && !COST.sSpecial)) {
+    context.textContent = 'No Cost Per Hire data found (expected a "Cost Per Hire" sheet in Recruitment_Requisition.xlsx).';
+    body.innerHTML = '';
+    return;
+  }
+
+  context.textContent = (COST.context || 'Annual summary') + ' — not affected by the filters above';
+
+  const types = [
+    { key: 'oGeneral', label: 'O-General', color: 'var(--accent)' },
+    { key: 'sGeneral', label: 'S-General', color: 'var(--teal)' },
+    { key: 'sSpecial', label: 'S-Special', color: 'var(--violet)' },
+  ];
+
+  body.innerHTML = `<div class="cost-card-row">` + types.map(t => {
+    const c = COST[t.key];
+    if (!c) return `<div class="cost-card"><div class="cc-type">${t.label}</div><div class="cc-main">–</div><div class="cc-main-label">No data</div></div>`;
+    return `
+      <div class="cost-card" style="border-top:3px solid ${t.color};">
+        <div class="cc-type">${t.label}</div>
+        <div class="cc-main tnum">฿${fmtNum(c.exclMedical)}</div>
+        <div class="cc-main-label">Per hire, excl. medical check-up</div>
+        <div class="cc-breakdown">
+          <div class="cc-row"><span class="cc-lbl">Incl. medical (men)</span><span class="cc-val">฿${fmtNum(c.inclMedicalMen)}</span></div>
+          <div class="cc-row"><span class="cc-lbl">Incl. medical (women)</span><span class="cc-val">฿${fmtNum(c.inclMedicalWomen)}</span></div>
+        </div>
+      </div>`;
+  }).join('') + `</div>`;
 }
 
 /* ------------------------------- TAB: Satisfaction -------------------------- */
