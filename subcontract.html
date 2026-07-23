@@ -102,9 +102,12 @@
 
     <!-- TAB 4: Employee list -->
     <div class="tabpane" id="tab-employees">
+      <div class="filter-bar" id="filterBarEmployees">
+        <div class="filter-actions"><button class="btn-reset" id="resetEmpFilters">Clear filters</button></div>
+      </div>
       <div class="table-wrap">
         <div class="table-toolbar">
-          <input type="search" id="empSearch" placeholder="Search name / position / department...">
+          <input type="search" id="empSearch" placeholder="Search ID / name / position / department...">
           <span class="count-label" id="empCount"></span>
         </div>
         <div style="overflow-x:auto;">
@@ -112,9 +115,11 @@
           <thead>
             <tr>
               <th data-key="company">Company</th>
+              <th data-key="employee_id">ID</th>
               <th data-key="name">Name</th>
               <th data-key="position">Position</th>
               <th data-key="division">Division</th>
+              <th data-key="department">Department</th>
               <th data-key="work_unit">Work Unit</th>
               <th data-key="location">Location</th>
               <th data-key="age">Age</th>
@@ -130,7 +135,7 @@
           <button id="empNext">Next →</button>
         </div>
       </div>
-      <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, this list excludes national ID numbers, phone numbers, email addresses and salary information.</p>
+      <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, this list excludes national ID numbers, phone numbers, email addresses and salary information. The ID column is the internal staff code only.</p>
     </div>
 
   </div>
