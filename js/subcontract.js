@@ -87,13 +87,19 @@ function renderOverview() {
   const avgAge = ages.length ? ages.reduce((s,v)=>s+v,0)/ages.length : null;
   const avgTenure = tenures.length ? tenures.reduce((s,v)=>s+v,0)/tenures.length : null;
 
+  const totalStarted = REC.filter(r => r.status === 'เริ่มงานแล้ว' && (!overviewFilters.company || overviewFilters.company.has(r.company))).length;
+  const totalResigned = TURN_MONTHLY.reduce((s, r) => s + (Number(r.resigned_2025) || 0) + (Number(r.resigned_2026) || 0), 0);
+  const netChange = totalStarted - totalResigned;
+
   document.getElementById('kpiOverview').innerHTML = [
     { label: 'Current Total Headcount', value: fmtNum(total), sub: 'employees', color: 'var(--accent)' },
     { label: 'Manpower', value: fmtNum(manpower), sub: total ? fmtPct(manpower/total) : '–', color: 'var(--teal)' },
     { label: 'HR Digest', value: fmtNum(hrd), sub: total ? fmtPct(hrd/total) : '–', color: 'var(--blue)' },
     { label: 'Average Age', value: avgAge !== null ? fmtNum(avgAge) + ' yrs' : '–', sub: 'of current employees', color: 'var(--amber)' },
     { label: 'Average Tenure', value: avgTenure !== null ? fmtNum(avgTenure) + ' yrs' : '–', sub: 'of current employees', color: 'var(--violet)' },
+    { label: 'Net Headcount Change', value: (netChange > 0 ? '+' : '') + fmtNum(netChange), sub: `${fmtNum(totalStarted)} started − ${fmtNum(totalResigned)} resigned (all-time, company-wide)`, color: netChange >= 0 ? 'var(--teal)' : 'var(--rose)' },
   ].map(c => `<div class="kpi-card" style="--bar-color:${c.color}"><div class="label">${c.label}</div><div class="value tnum">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('');
+  document.getElementById('kpiOverview').style.gridTemplateColumns = 'repeat(3, 1fr)';
 
   destroyChart('company');
   charts.company = new Chart(document.getElementById('chartCompany'), {
