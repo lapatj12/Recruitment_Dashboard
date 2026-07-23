@@ -258,6 +258,36 @@ table.data-table tbody tr:hover { background: var(--bg); }
 .comment-tag.good { background: var(--teal-soft); color: var(--teal); }
 .comment-tag.improve { background: var(--amber-soft); color: var(--amber); }
 
+/* -------------------- Position detail modal -------------------- */
+table.data-table tbody tr.clickable-row { cursor: pointer; }
+table.data-table tbody tr.clickable-row:hover { background: var(--accent-soft); }
+.detail-stat { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; }
+.detail-label { font-size: 11px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.detail-value { font-size: 14px; font-weight: 600; color: var(--ink); }
+
+/* -------------------- Positions to Watch list -------------------- */
+.watch-row {
+  display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--line-soft);
+  cursor: pointer; transition: background .12s ease;
+}
+.watch-row:last-child { border-bottom: none; }
+.watch-row:hover { background: var(--bg); }
+.watch-row .wr-main { flex: 1; min-width: 0; }
+.watch-row .wr-position { font-family: var(--font-display); font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.watch-row .wr-sub { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+.watch-row .wr-stat { flex: none; text-align: right; min-width: 76px; }
+.watch-row .wr-stat .n { font-family: var(--font-num); font-weight: 700; font-size: 14px; color: var(--ink); }
+.watch-row .wr-stat .lbl { font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .03em; }
+.watch-empty { padding: 24px 4px; text-align: center; color: var(--ink-faint); font-size: 13px; }
+
+/* -------------------- Analytics insights callout -------------------- */
+.insight-panel { background: linear-gradient(135deg, var(--ink) 0%, #2A3350 100%); border-radius: var(--radius-lg); padding: 20px 24px; color: #F2EFE8; }
+.insight-panel h3 { color: #fff; margin: 0 0 4px; }
+.insight-panel .panel-sub { color: #B7BFD6; }
+.insight-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.insight-list li { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; line-height: 1.55; }
+.insight-list .bullet { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 6px; }
+
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #D9D3C5; border-radius: 8px; }
