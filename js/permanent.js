@@ -6,7 +6,7 @@ const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 
 let RAW = [];
 let SAT = [];
-let filters = { location: null, year: null, month: null, status: null, kpi: null };
+let filters = { location: null, year: null, month: null, status: null, kpi: null, position: null };
 let satFilters = { position: null, month: null };
 let charts = {};
 let activeTab = 'overview';
@@ -24,7 +24,7 @@ async function init() {
 
   document.getElementById('resetFilters').addEventListener('click', () => {
     Object.keys(msControls).forEach(k => msControls[k].clear());
-    filters = { location: null, year: null, month: null, status: null, kpi: null };
+    filters = { location: null, year: null, month: null, status: null, kpi: null, position: null };
     renderAll();
   });
   document.getElementById('resetSatFilters').addEventListener('click', () => {
@@ -67,9 +67,10 @@ function renderActiveTab() {
   switch (activeTab) {
     case 'overview':
       run(renderKPIs, data);
-      run(renderKpiDonuts, data);
       run(renderTrendChart, data);
+      run(renderKpiDonuts, data);
       run(renderTTHChart, data);
+      run(renderWatchList, data);
       break;
     case 'satisfaction':
       run(renderSatisfactionTab);
@@ -79,7 +80,9 @@ function renderActiveTab() {
       run(renderPositionsTable);
       break;
     case 'analytics':
+      run(renderInsights, data);
       run(renderEffectiveRateChart, data);
+      run(renderTTHTrendChart, data);
       run(renderDivisionChart, data);
       break;
   }
@@ -98,11 +101,26 @@ function buildFilters() {
     { key: 'month', label: 'Month', field: 'month' },
     { key: 'status', label: 'Status', field: 'status' },
     { key: 'kpi', label: 'KPI', field: 'kpi' },
+    { key: 'position', label: 'Position', field: 'position' },
   ];
   defs.forEach(d => {
     let opts = uniqueSorted(RAW, d.field);
     if (d.key === 'month') opts = MONTH_ORDER.filter(m => opts.includes(m)).concat(opts.filter(o => !MONTH_ORDER.includes(o)));
-    const ctrl = buildMultiSelect(bar, d.label, opts, (sel) => { filters[d.key] = sel; renderAll(); });
+    const ctrl = buildMultiSelect(bar, d.label, opts, (sel) => {
+      filters[d.key] = sel;
+      renderAll();
+      // Selecting exactly one Position is a strong signal the person wants to drill
+      // into that role — auto-open its detail (KPI + matching Satisfaction feedback)
+      // instead of making them also click into the Positions tab and find the row.
+      if (d.key === 'position' && sel && sel.size === 1) {
+        const posName = [...sel][0];
+        const matches = applyFilters(RAW).filter(r => r.position === posName);
+        if (matches.length) {
+          const mostRecent = matches.slice().sort((a, b) => (b.approved_date || '').localeCompare(a.approved_date || ''))[0];
+          showPositionDetail(mostRecent);
+        }
+      }
+    });
     bar.insertBefore(bar.lastElementChild, actions);
     msControls[d.key] = ctrl;
   });
@@ -115,6 +133,7 @@ function applyFilters(rows) {
     if (filters.month && !filters.month.has(r.month)) return false;
     if (filters.status && !filters.status.has(r.status)) return false;
     if (filters.kpi && !filters.kpi.has(r.kpi)) return false;
+    if (filters.position && !filters.position.has(r.position)) return false;
     return true;
   });
 }
@@ -183,6 +202,42 @@ function renderTrendChart(data) {
       scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: CHART_COLORS.line } } }
     },
     plugins: [ChartDataLabels]
+  });
+}
+
+/** "Positions to Watch" — Effective positions that closed Over KPI, worst first.
+ * Surfaces the KPI+Satisfaction link (via click → showPositionDetail) right on
+ * the Overview tab instead of requiring a trip to the Positions table. */
+function renderWatchList(data) {
+  const overKpi = data.filter(r => r.status === 'Effective' && r.kpi === 'OVER KPI');
+  const withDays = overKpi.map(r => ({ row: r, days: Number(r.diff_days) || 0 }))
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 8);
+
+  const el = document.getElementById('watchList');
+  if (!withDays.length) {
+    el.innerHTML = '<div class="watch-empty">No positions closed Over KPI in the current filter — nice work.</div>';
+    return;
+  }
+  el.innerHTML = withDays.map(({ row: r, days }) => {
+    const sat = getSatForPosition(r.position);
+    return `
+      <div class="watch-row" data-position="${r.position.replace(/"/g, '&quot;')}">
+        <div class="wr-main">
+          <div class="wr-position">${r.position}</div>
+          <div class="wr-sub">${r.location} · ${r.channel || 'Unknown channel'}</div>
+        </div>
+        <div class="wr-stat"><div class="n">${days ? days + 'd' : '–'}</div><div class="lbl">Time-to-Hire</div></div>
+        <div class="wr-stat"><div class="n">${sat && sat.pct !== null ? sat.pct + '%' : '–'}</div><div class="lbl">Satisfaction</div></div>
+      </div>`;
+  }).join('');
+
+  document.querySelectorAll('#watchList .watch-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const posName = row.dataset.position;
+      const match = data.find(r => r.position === posName && r.kpi === 'OVER KPI');
+      if (match) showPositionDetail(match);
+    });
   });
 }
 
@@ -309,6 +364,17 @@ let posSort = { key: 'approved_date', dir: -1 };
 let posPage = 0;
 const POS_PAGE_SIZE = 15;
 
+/** Finds satisfaction survey responses that match a recruitment position name
+ * (trimmed, case-insensitive exact match). Returns null if there's no match. */
+function getSatForPosition(positionName) {
+  const key = (positionName || '').trim().toLowerCase();
+  if (!key) return null;
+  const rows = SAT.filter(r => (r.position || '').trim().toLowerCase() === key);
+  if (!rows.length) return null;
+  const avg = avgOf(rows, ['q_quality_1', 'q_quality_2', 'q_service_1', 'q_service_2']);
+  return { pct: avg !== null ? Math.round(avg / 4 * 100) : null, count: rows.length, rows };
+}
+
 function initPositionsTable() {
   document.getElementById('posSearch').addEventListener('input', () => { posPage = 0; renderPositionsTable(); });
   document.querySelectorAll('#posTable thead th').forEach(th => {
@@ -320,6 +386,9 @@ function initPositionsTable() {
   });
   document.getElementById('posPrev').addEventListener('click', () => { if (posPage > 0) { posPage--; renderPositionsTable(); } });
   document.getElementById('posNext').addEventListener('click', () => { posPage++; renderPositionsTable(); });
+  document.getElementById('posDetailClose').addEventListener('click', () => {
+    document.getElementById('posDetailModal').style.display = 'none';
+  });
 }
 
 function renderPositionsTable() {
@@ -339,8 +408,10 @@ function renderPositionsTable() {
 
   const statusColor = { 'Effective': 'var(--teal-soft);color:var(--teal)', 'Cancel': 'var(--rose-soft);color:var(--rose)', 'Hold': 'var(--amber-soft);color:var(--amber)' };
 
-  document.getElementById('posTableBody').innerHTML = pageRows.map(r => `
-    <tr>
+  document.getElementById('posTableBody').innerHTML = pageRows.map((r, i) => {
+    const sat = getSatForPosition(r.position);
+    return `
+    <tr class="clickable-row" data-idx="${i}">
       <td>${r.position}</td>
       <td>${r.location}</td>
       <td>${r.type_group || '–'}</td>
@@ -349,12 +420,55 @@ function renderPositionsTable() {
       <td class="tnum">${r.approved_date || '–'}</td>
       <td class="tnum">${r.final_date || '–'}</td>
       <td>${r.kpi || '–'}</td>
-    </tr>`).join('');
+      <td class="tnum">${sat && sat.pct !== null ? sat.pct + '%' : '–'}</td>
+    </tr>`;
+  }).join('');
+
+  // attach click handlers referencing the actual row objects (avoids re-parsing HTML)
+  document.querySelectorAll('#posTableBody tr').forEach(tr => {
+    const r = pageRows[Number(tr.dataset.idx)];
+    tr.addEventListener('click', () => showPositionDetail(r));
+  });
 
   document.getElementById('posCount').textContent = `${rows.length.toLocaleString('en-US')} records`;
   document.getElementById('posPageLabel').textContent = `Page ${posPage + 1} / ${totalPages}`;
   document.getElementById('posPrev').disabled = posPage === 0;
   document.getElementById('posNext').disabled = posPage >= totalPages - 1;
+}
+
+function showPositionDetail(r) {
+  document.getElementById('posDetailTitle').textContent = r.position || 'Unnamed position';
+  document.getElementById('posDetailSub').textContent = `${r.location || '–'} · ${r.type_group || '–'} · ${r.status || '–'}`;
+
+  const sat = getSatForPosition(r.position);
+  const kpiPillColor = r.kpi === 'ON KPI' ? 'var(--teal-soft);color:var(--teal)' : r.kpi === 'OVER KPI' ? 'var(--rose-soft);color:var(--rose)' : 'var(--line);color:var(--ink-faint)';
+
+  let html = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+      <div class="detail-stat"><div class="detail-label">Channel</div><div class="detail-value">${r.channel || '–'}</div></div>
+      <div class="detail-stat"><div class="detail-label">Approved → Final</div><div class="detail-value">${r.approved_date || '–'} → ${r.final_date || '–'}</div></div>
+      <div class="detail-stat"><div class="detail-label">Time-to-Hire</div><div class="detail-value">${r.diff_days ? r.diff_days + ' days' : '–'}</div></div>
+      <div class="detail-stat"><div class="detail-label">KPI</div><div class="detail-value"><span class="pill" style="background:${kpiPillColor}">${r.kpi || 'Not recorded'}</span></div></div>
+    </div>
+    <h4 style="font-family:var(--font-display); font-size:14px; margin:0 0 10px;">Satisfaction Feedback</h4>`;
+
+  if (!sat) {
+    html += `<p style="font-size:13px; color:var(--ink-faint);">No matching satisfaction survey response found for this exact position name.</p>`;
+  } else {
+    html += `<div class="detail-stat" style="margin-bottom:14px;"><div class="detail-label">Overall Satisfaction (${sat.count} response${sat.count > 1 ? 's' : ''})</div><div class="detail-value" style="font-size:22px;">${sat.pct !== null ? sat.pct + '%' : '–'}</div></div>`;
+    const withComments = sat.rows.filter(x => x.impressed || x.improve);
+    if (withComments.length) {
+      html += `<div class="comments-list" style="max-height:220px;">` + withComments.map(x => `
+        <div class="comment-card">
+          <div class="comment-head"><span class="comment-position">${x.date}</span></div>
+          ${x.impressed ? `<div class="comment-row"><span class="comment-tag good">Liked</span><span>${x.impressed}</span></div>` : ''}
+          ${x.improve ? `<div class="comment-row"><span class="comment-tag improve">Suggested</span><span>${x.improve}</span></div>` : ''}
+        </div>`).join('') + `</div>`;
+    }
+  }
+
+  document.getElementById('posDetailBody').innerHTML = html;
+  document.getElementById('posDetailModal').style.display = 'flex';
 }
 
 /* ------------------------------- TAB: Analytics ---------------------------- */
@@ -383,6 +497,88 @@ function renderEffectiveRateChart(data) {
     },
     plugins: [ChartDataLabels]
   });
+}
+
+function renderTTHTrendChart(data) {
+  destroyChart('tthTrend');
+  const months = MONTH_ORDER.filter(m => data.some(r => r.month === m));
+  const avgs = months.map(m => {
+    const rows = data.filter(r => r.month === m && r.status === 'Effective' && r.diff_days !== '' && !isNaN(Number(r.diff_days)));
+    return rows.length ? Math.round(rows.reduce((s, r) => s + Number(r.diff_days), 0) / rows.length) : null;
+  });
+
+  const ctx = document.getElementById('chartTTHTrend');
+  charts.tthTrend = new Chart(ctx, {
+    type: 'line',
+    data: { labels: months, datasets: [{ label: 'Avg. days', data: avgs, borderColor: CHART_COLORS.blue, backgroundColor: CHART_COLORS.blueSoft, tension: .35, fill: true, pointRadius: 4, spanGaps: true }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + 'd' : '' },
+        tooltip: { callbacks: { label: (c) => c.parsed.y + ' days average' } }
+      },
+      scales: { y: { beginAtZero: true, grid: { color: CHART_COLORS.line } }, x: { grid: { display: false } } }
+    },
+    plugins: [ChartDataLabels]
+  });
+}
+
+/** Short, auto-generated narrative bullets summarizing the current filter selection —
+ * gives the Analytics tab a "so what" instead of just charts. */
+function renderInsights(data) {
+  const el = document.getElementById('insightList');
+  const bullets = [];
+
+  const effective = data.filter(r => r.status === 'Effective');
+  const total = data.length;
+  if (total) {
+    bullets.push(`<strong>${Math.round(effective.length / total * 100)}%</strong> of requisitions in this selection closed Effective (${effective.length} of ${total}).`);
+  }
+
+  // Best / worst month by effective rate
+  const months = MONTH_ORDER.filter(m => data.some(r => r.month === m));
+  const monthRates = months.map(m => {
+    const rows = data.filter(r => r.month === m);
+    const eff = rows.filter(r => r.status === 'Effective').length;
+    return { m, rate: rows.length ? eff / rows.length : 0, n: rows.length };
+  }).filter(x => x.n >= 2);
+  if (monthRates.length) {
+    const best = monthRates.slice().sort((a, b) => b.rate - a.rate)[0];
+    const worst = monthRates.slice().sort((a, b) => a.rate - b.rate)[0];
+    if (best.m !== worst.m) {
+      bullets.push(`<strong>${best.m}</strong> had the strongest Effective rate (${Math.round(best.rate * 100)}%), while <strong>${worst.m}</strong> was the weakest (${Math.round(worst.rate * 100)}%).`);
+    }
+  }
+
+  // Fastest / slowest location by time-to-hire
+  const effWithDays = effective.filter(r => r.diff_days !== '' && !isNaN(Number(r.diff_days)));
+  const byLoc = {};
+  effWithDays.forEach(r => { (byLoc[r.location] = byLoc[r.location] || []).push(Number(r.diff_days)); });
+  const locAvgs = Object.keys(byLoc).map(l => ({ l, avg: byLoc[l].reduce((s, v) => s + v, 0) / byLoc[l].length }));
+  if (locAvgs.length > 1) {
+    const fastest = locAvgs.slice().sort((a, b) => a.avg - b.avg)[0];
+    const slowest = locAvgs.slice().sort((a, b) => b.avg - a.avg)[0];
+    bullets.push(`<strong>${fastest.l}</strong> closes positions fastest on average (${Math.round(fastest.avg)} days), vs. <strong>${slowest.l}</strong> at ${Math.round(slowest.avg)} days.`);
+  }
+
+  // Top channel
+  const byChannel = {};
+  effective.forEach(r => { if (r.channel) byChannel[r.channel] = (byChannel[r.channel] || 0) + 1; });
+  const topChannel = Object.keys(byChannel).sort((a, b) => byChannel[b] - byChannel[a])[0];
+  if (topChannel) {
+    bullets.push(`<strong>${topChannel}</strong> is the top hiring channel, responsible for ${byChannel[topChannel]} of ${effective.length} hires.`);
+  }
+
+  // Over KPI count
+  const overKpi = effective.filter(r => r.kpi === 'OVER KPI');
+  if (effective.length) {
+    bullets.push(`<strong>${overKpi.length}</strong> Effective position(s) closed Over KPI (${Math.round(overKpi.length / effective.length * 100)}% of Effective hires) — see "Positions to Watch" on the Overview tab.`);
+  }
+
+  el.innerHTML = bullets.length
+    ? bullets.map(b => `<li><span class="bullet"></span><span>${b}</span></li>`).join('')
+    : '<li><span class="bullet"></span><span>Not enough data in the current filter to generate insights.</span></li>';
 }
 
 function renderDivisionChart(data) {
