@@ -288,6 +288,18 @@ table.data-table tbody tr.clickable-row:hover { background: var(--accent-soft); 
 .insight-list li { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; line-height: 1.55; }
 .insight-list .bullet { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 6px; }
 
+/* -------------------- Cost Per Hire -------------------- */
+.cost-card-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 860px) { .cost-card-row { grid-template-columns: 1fr; } }
+.cost-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 18px 20px; background: var(--bg); }
+.cost-card .cc-type { font-family: var(--font-display); font-weight: 600; font-size: 13.5px; color: var(--ink-soft); margin-bottom: 8px; }
+.cost-card .cc-main { font-family: var(--font-num); font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1; }
+.cost-card .cc-main-label { font-size: 11px; color: var(--ink-faint); margin-top: 4px; }
+.cost-card .cc-breakdown { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.cost-card .cc-row { display: flex; justify-content: space-between; font-size: 12.5px; }
+.cost-card .cc-row .cc-lbl { color: var(--ink-faint); }
+.cost-card .cc-row .cc-val { font-family: var(--font-num); font-weight: 600; color: var(--ink); }
+
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #D9D3C5; border-radius: 8px; }
