@@ -217,6 +217,7 @@ const CHART_COLORS = {
   rose: '#C1443A', roseSoft: '#DE9089',
   violet: '#6B5B95', violetSoft: '#AFA3CC',
   green: '#2E8B57', greenSoft: '#A9D8BC', greenLight: '#7FBF95',
+  black: '#15171C', blackSoft: '#C7C9CE', gray: '#8A93A3', graySoft: '#D8DBE0',
   ink: '#1B2130', inkSoft: '#5B6472', line: '#E7E2D6'
 };
 const CHART_PALETTE = [CHART_COLORS.accent, CHART_COLORS.teal, CHART_COLORS.blue, CHART_COLORS.amber, CHART_COLORS.violet, CHART_COLORS.rose, CHART_COLORS.accentSoft, CHART_COLORS.tealSoft];

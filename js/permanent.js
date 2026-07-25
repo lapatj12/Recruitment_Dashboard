@@ -12,17 +12,20 @@ const STATUS_COLORS = {
   'Wait to Join': CHART_COLORS.greenLight,
   'Screening': CHART_COLORS.blue,
   'Final Interview': CHART_COLORS.blueSoft,
-  'Hold': CHART_COLORS.amber,
-  'Cancel': CHART_COLORS.rose,
+  'Hold': CHART_COLORS.gray,
+  'Cancel': CHART_COLORS.black,
 };
+/** Total Requisition's own color — used for both the KPI card and the "Total
+ * requested" line overlay on the trend chart, so the two visually "link". */
+const TOTAL_COLOR = CHART_COLORS.violet;
 /** Matching CSS-var pill background/text pairs for the same statuses, for the HTML table. */
 const STATUS_PILL = {
   'Effective': 'var(--green-soft);color:var(--green)',
   'Wait to Join': 'var(--green-light-soft);color:var(--green-light)',
   'Screening': 'var(--blue-soft);color:var(--blue)',
   'Final Interview': 'var(--blue-soft);color:var(--blue)',
-  'Hold': 'var(--amber-soft);color:var(--amber)',
-  'Cancel': 'var(--rose-soft);color:var(--rose)',
+  'Hold': 'var(--gray-soft);color:var(--gray)',
+  'Cancel': 'var(--black-soft);color:var(--black)',
 };
 
 let RAW = [];
@@ -192,7 +195,7 @@ function renderKPIs(data) {
   const neutral = 'var(--blue)';
 
   const cards = [
-    { label: 'Total Requisition', value: fmtNum(total), sub: 'All positions matching filters', color: neutral },
+    { label: 'Total Requisition', value: fmtNum(total), sub: 'All positions matching filters', color: 'var(--violet)' },
     { label: 'Effective', value: fmtNum(effective.length), sub: total ? fmtPct(effective.length / total) + ' of total' : '–', color: 'var(--green)' },
     { label: 'Wait to Join', value: fmtNum(waitToJoin), sub: 'Awaiting start date', color: 'var(--green-light)' },
     { label: 'On Screening', value: fmtNum(onScreening), sub: 'In interview / screening', color: neutral },
@@ -212,11 +215,18 @@ function renderTrendChart(data) {
   const months = MONTH_ORDER.filter(m => data.some(r => r.month === m));
   const statuses = ['Effective', 'Wait to Join', 'Screening', 'Final Interview', 'Hold', 'Cancel'];
   const datasets = statuses.map((s) => ({
-    label: s,
+    type: 'bar', label: s, order: 1,
     data: months.map(m => data.filter(r => r.month === m && r.status === s).length),
     backgroundColor: STATUS_COLORS[s] || CHART_COLORS.inkSoft,
     borderRadius: 5, stack: 'a',
   }));
+  // Overlay: total positions requested per month (same color as the Total Requisition KPI card)
+  datasets.push({
+    type: 'line', label: 'Total Requested', order: 0,
+    data: months.map(m => data.filter(r => r.month === m).length),
+    borderColor: TOTAL_COLOR, backgroundColor: TOTAL_COLOR, pointBackgroundColor: TOTAL_COLOR,
+    borderWidth: 2, tension: .25, pointRadius: 4, fill: false,
+  });
 
   const ctx = document.getElementById('chartTrend');
   charts.trend = new Chart(ctx, {
@@ -227,12 +237,14 @@ function renderTrendChart(data) {
       plugins: {
         legend: { position: 'bottom' },
         datalabels: {
-          display: (c) => c.dataset.data[c.dataIndex] > 0,
-          color: (c) => ['Wait to Join', 'Hold'].includes(c.dataset.label) ? CHART_COLORS.ink : '#fff',
-          font: { weight: '700', size: 10 },
+          display: (c) => c.dataset.type === 'line' ? true : c.dataset.data[c.dataIndex] > 0,
+          color: (c) => c.dataset.type === 'line' ? TOTAL_COLOR : (['Wait to Join', 'Hold'].includes(c.dataset.label) ? CHART_COLORS.ink : '#fff'),
+          anchor: (c) => c.dataset.type === 'line' ? 'end' : undefined,
+          align: (c) => c.dataset.type === 'line' ? 'top' : undefined,
+          font: (c) => c.dataset.type === 'line' ? { weight: '700', size: 11 } : { weight: '700', size: 10 },
         },
       },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ...graceScale() } }
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ...graceScale({ grace: '22%' }) } }
     },
     plugins: [ChartDataLabels]
   });
