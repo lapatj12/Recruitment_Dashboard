@@ -4,6 +4,27 @@
 
 const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+/** One status → one color, used everywhere status appears on this dashboard
+ * (trend chart, Positions table pills) so "Effective" always reads as the
+ * same green the KPI cards and donuts use, etc. */
+const STATUS_COLORS = {
+  'Effective': CHART_COLORS.green,
+  'Wait to Join': CHART_COLORS.greenLight,
+  'Screening': CHART_COLORS.blue,
+  'Final Interview': CHART_COLORS.blueSoft,
+  'Hold': CHART_COLORS.amber,
+  'Cancel': CHART_COLORS.rose,
+};
+/** Matching CSS-var pill background/text pairs for the same statuses, for the HTML table. */
+const STATUS_PILL = {
+  'Effective': 'var(--green-soft);color:var(--green)',
+  'Wait to Join': 'var(--green-light-soft);color:var(--green-light)',
+  'Screening': 'var(--blue-soft);color:var(--blue)',
+  'Final Interview': 'var(--blue-soft);color:var(--blue)',
+  'Hold': 'var(--amber-soft);color:var(--amber)',
+  'Cancel': 'var(--rose-soft);color:var(--rose)',
+};
+
 let RAW = [];
 let SAT = [];
 let COST = null;
@@ -74,6 +95,7 @@ function renderActiveTab() {
       run(renderKpiDonuts, data);
       run(renderTTHChart, data);
       run(renderWatchList, data);
+      run(renderOverviewGlance);
       break;
     case 'satisfaction':
       run(renderSatisfactionTab);
@@ -159,19 +181,22 @@ function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete ch
 
 function renderKPIs(data) {
   const total = data.length;
-  const effective = data.filter(r => r.status === 'Effective').length;
+  const effective = data.filter(r => r.status === 'Effective');
   const waitToJoin = data.filter(r => r.status === 'Wait to Join').length;
   const onScreening = data.filter(r => r.status === 'Screening' || r.status === 'Final Interview').length;
 
-  const effRows = data.filter(r => r.status === 'Effective' && r.diff_days !== '' && !isNaN(Number(r.diff_days)));
+  const effRows = effective.filter(r => r.diff_days !== '' && !isNaN(Number(r.diff_days)));
   const avgTTH = effRows.length ? effRows.reduce((s, r) => s + Number(r.diff_days), 0) / effRows.length : null;
 
+  // Monochrome tone shared by the non-status "volume" metrics, per the executive color spec
+  const neutral = 'var(--blue)';
+
   const cards = [
-    { label: 'Total Requisition', value: fmtNum(total), sub: 'All positions matching filters', color: 'var(--accent)' },
-    { label: 'Effective', value: fmtNum(effective), sub: total ? fmtPct(effective / total) + ' of total' : '–', color: 'var(--teal)' },
-    { label: 'Wait to Join', value: fmtNum(waitToJoin), sub: 'Awaiting start date', color: 'var(--amber)' },
-    { label: 'On Screening', value: fmtNum(onScreening), sub: 'In interview / screening', color: 'var(--blue)' },
-    { label: 'Avg. Time-to-Hire', value: avgTTH !== null ? fmtNum(avgTTH) + ' days' : '–', sub: 'From Approved to Final (Effective)', color: 'var(--violet)' },
+    { label: 'Total Requisition', value: fmtNum(total), sub: 'All positions matching filters', color: neutral },
+    { label: 'Effective', value: fmtNum(effective.length), sub: total ? fmtPct(effective.length / total) + ' of total' : '–', color: 'var(--green)' },
+    { label: 'Wait to Join', value: fmtNum(waitToJoin), sub: 'Awaiting start date', color: 'var(--green-light)' },
+    { label: 'On Screening', value: fmtNum(onScreening), sub: 'In interview / screening', color: neutral },
+    { label: 'Avg. Time-to-Hire', value: avgTTH !== null ? fmtNum(avgTTH) + ' days' : '–', sub: 'From Approved to Final (Effective)', color: neutral },
   ];
 
   document.getElementById('kpiGrid').innerHTML = cards.map(c => `
@@ -186,10 +211,10 @@ function renderTrendChart(data) {
   destroyChart('trend');
   const months = MONTH_ORDER.filter(m => data.some(r => r.month === m));
   const statuses = ['Effective', 'Wait to Join', 'Screening', 'Final Interview', 'Hold', 'Cancel'];
-  const datasets = statuses.map((s, i) => ({
+  const datasets = statuses.map((s) => ({
     label: s,
     data: months.map(m => data.filter(r => r.month === m && r.status === s).length),
-    backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length],
+    backgroundColor: STATUS_COLORS[s] || CHART_COLORS.inkSoft,
     borderRadius: 5, stack: 'a',
   }));
 
@@ -201,9 +226,13 @@ function renderTrendChart(data) {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { position: 'bottom' },
-        datalabels: { display: (c) => c.dataset.data[c.dataIndex] > 0, color: '#fff', font: { weight: '700', size: 10 } },
+        datalabels: {
+          display: (c) => c.dataset.data[c.dataIndex] > 0,
+          color: (c) => ['Wait to Join', 'Hold'].includes(c.dataset.label) ? CHART_COLORS.ink : '#fff',
+          font: { weight: '700', size: 10 },
+        },
       },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: CHART_COLORS.line } } }
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ...graceScale() } }
     },
     plugins: [ChartDataLabels]
   });
@@ -245,10 +274,55 @@ function renderWatchList(data) {
   });
 }
 
+/** Programmatically switches to another tab (used by clickable summary cards). */
+function switchToTab(tabName) {
+  const btn = document.querySelector(`#tabbar button[data-tab="${tabName}"]`);
+  if (btn) btn.click();
+}
+
+/** "At a Glance" — Satisfaction and Cost Per Hire summary cards on the Overview
+ * tab, so an executive who only opens Overview still sees these headline
+ * numbers, with one click through to the full detail on their own tab. */
+function renderOverviewGlance() {
+  const el = document.getElementById('overviewGlance');
+  if (!el) return;
+
+  const overallSatAvg = avgOf(SAT, ['q_quality_1', 'q_quality_2', 'q_service_1', 'q_service_2']);
+  const overallSatPct = overallSatAvg !== null ? Math.round(overallSatAvg / 4 * 100) : null;
+
+  const cards = [];
+
+  cards.push(`
+    <button class="glance-card" data-tab="satisfaction">
+      <div class="gc-label">Overall Satisfaction</div>
+      <div class="gc-value tnum">${overallSatPct !== null ? overallSatPct + '%' : '–'}</div>
+      <div class="gc-sub">${SAT.length} survey response(s), all-time</div>
+      <div class="gc-link">View Satisfaction tab →</div>
+    </button>`);
+
+  if (COST && (COST.oGeneral || COST.sGeneral || COST.sSpecial)) {
+    const vals = [COST.oGeneral, COST.sGeneral, COST.sSpecial].filter(Boolean).map(c => Number(c.exclMedical)).filter(n => !isNaN(n));
+    const blended = vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
+    cards.push(`
+      <button class="glance-card" data-tab="analytics">
+        <div class="gc-label">Avg. Cost Per Hire</div>
+        <div class="gc-value tnum">${blended !== null ? '฿' + fmtNum(blended) : '–'}</div>
+        <div class="gc-sub">Blended across O-General / S-General / S-Special · excl. medical</div>
+        <div class="gc-link">View Analytics tab →</div>
+      </button>`);
+  }
+
+  el.innerHTML = cards.join('');
+  el.querySelectorAll('.glance-card').forEach(btn => {
+    btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
+  });
+}
+
 /* ------------------------------- TAB: KPI Report --------------------------- */
 
 function renderKpiDonuts(data) {
   const effective = data.filter(r => r.status === 'Effective');
+  renderKpiDonutCard('donutWrapOverall', 'legendOverall', effective);
   renderKpiDonutCard('donutWrapSpecial', 'legendSpecial', effective.filter(r => r.type_group === 'Special'));
   renderKpiDonutCard('donutWrapGeneral', 'legendGeneral', effective.filter(r => r.type_group === 'General'));
 }
@@ -270,7 +344,7 @@ function buildDonutSVG(onKpi, overKpi) {
   const overLen = (overKpi / total) * circumference;
   return `<svg viewBox="0 0 100 100" width="148" height="148" style="transform:rotate(-90deg)">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.line}" stroke-width="${sw}"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.teal}" stroke-width="${sw}"
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.green}" stroke-width="${sw}"
       stroke-dasharray="${onLen} ${circumference - onLen}" stroke-dashoffset="0"/>
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.rose}" stroke-width="${sw}"
       stroke-dasharray="${overLen} ${circumference - overLen}" stroke-dashoffset="${-onLen}"/>
@@ -291,7 +365,7 @@ function renderKpiDonutCard(wrapId, legendId, rows) {
 
   const legend = document.getElementById(legendId);
   legend.innerHTML = `
-    <li><span class="dot" style="background:${CHART_COLORS.teal}"></span><span class="lbl">On KPI</span><span class="val">${onKpi}</span><span class="sub">${total ? Math.round(onKpi / total * 100) + '%' : ''}</span></li>
+    <li><span class="dot" style="background:${CHART_COLORS.green}"></span><span class="lbl">On KPI</span><span class="val">${onKpi}</span><span class="sub">${total ? Math.round(onKpi / total * 100) + '%' : ''}</span></li>
     <li><span class="dot" style="background:${CHART_COLORS.rose}"></span><span class="lbl">Over KPI</span><span class="val">${overKpi}</span><span class="sub">${total ? Math.round(overKpi / total * 100) + '%' : ''}</span></li>
     <li><span class="dot" style="background:${CHART_COLORS.line}"></span><span class="lbl">Avg days</span><span class="val">${avgDays !== null ? avgDays + 'd' : '–'}</span></li>
   `;
@@ -313,10 +387,10 @@ function renderTTHChart(data) {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: { anchor: 'end', align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 13 }, formatter: v => v + ' days' },
+        datalabels: smartBarLabels({ formatter: v => v + 'd' }),
         tooltip: { callbacks: { label: (c) => c.parsed.y + ' days average' } }
       },
-      scales: { y: { beginAtZero: true, grid: { color: CHART_COLORS.line } }, x: { grid: { display: false } } }
+      scales: { y: graceScale(), x: { grid: { display: false } } }
     },
     plugins: [ChartDataLabels]
   });
@@ -340,7 +414,7 @@ function renderChannelChart(data) {
       datasets: [{
         label: 'Number hired',
         data: counts,
-        backgroundColor: labels.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+        backgroundColor: monoShades(CHART_COLORS.blue, labels.length),
         borderRadius: 8, maxBarThickness: 40,
       }]
     },
@@ -355,10 +429,10 @@ function renderChannelChart(data) {
       },
       plugins: {
         legend: { display: false },
-        datalabels: { anchor: 'end', align: 'right', color: CHART_COLORS.ink, font: { weight: '700', size: 12 } },
+        datalabels: smartBarLabels(),
         tooltip: { callbacks: { label: (c) => c.parsed.x + ' position(s) — click to see the list' } }
       },
-      scales: { x: { beginAtZero: true, grid: { color: CHART_COLORS.line } }, y: { grid: { display: false } } }
+      scales: { x: graceScale(), y: { grid: { display: false } } }
     },
     plugins: [ChartDataLabels]
   });
@@ -410,8 +484,6 @@ function renderPositionsTable() {
   posPage = Math.min(posPage, totalPages - 1);
   const pageRows = rows.slice(posPage * POS_PAGE_SIZE, (posPage + 1) * POS_PAGE_SIZE);
 
-  const statusColor = { 'Effective': 'var(--teal-soft);color:var(--teal)', 'Cancel': 'var(--rose-soft);color:var(--rose)', 'Hold': 'var(--amber-soft);color:var(--amber)' };
-
   document.getElementById('posTableBody').innerHTML = pageRows.map((r, i) => {
     const sat = getSatForPosition(r.position);
     return `
@@ -419,7 +491,7 @@ function renderPositionsTable() {
       <td>${r.position}</td>
       <td>${r.location}</td>
       <td>${r.type_group || '–'}</td>
-      <td><span class="pill" style="background:${statusColor[r.status] || 'var(--blue-soft);color:var(--blue)'}">${r.status || '–'}</span></td>
+      <td><span class="pill" style="background:${STATUS_PILL[r.status] || 'var(--blue-soft);color:var(--blue)'}">${r.status || '–'}</span></td>
       <td>${r.channel || '–'}</td>
       <td class="tnum">${r.approved_date || '–'}</td>
       <td class="tnum">${r.final_date || '–'}</td>
@@ -489,12 +561,15 @@ function renderEffectiveRateChart(data) {
   const ctx = document.getElementById('chartEffectiveRate');
   charts.effRate = new Chart(ctx, {
     type: 'line',
-    data: { labels: months, datasets: [{ label: '% Effective', data: rates, borderColor: CHART_COLORS.teal, backgroundColor: CHART_COLORS.tealSoft, tension: .35, fill: true, pointRadius: 4 }] },
+    data: { labels: months, datasets: [{ label: '% Effective', data: rates, borderColor: CHART_COLORS.green, backgroundColor: CHART_COLORS.greenSoft, tension: .35, fill: true, pointRadius: 4 }] },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v + '%' },
+        datalabels: {
+          align: (ctx) => (Number(ctx.dataset.data[ctx.dataIndex]) || 0) >= 90 ? 'bottom' : 'top',
+          color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v + '%', clamp: true,
+        },
         tooltip: { callbacks: { label: (c) => c.parsed.y + '% Effective' } }
       },
       scales: { y: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.line }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
@@ -519,10 +594,10 @@ function renderTTHTrendChart(data) {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + 'd' : '' },
+        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + 'd' : '', clamp: true },
         tooltip: { callbacks: { label: (c) => c.parsed.y + ' days average' } }
       },
-      scales: { y: { beginAtZero: true, grid: { color: CHART_COLORS.line } }, x: { grid: { display: false } } }
+      scales: { y: graceScale(), x: { grid: { display: false } } }
     },
     plugins: [ChartDataLabels]
   });
@@ -594,11 +669,11 @@ function renderDivisionChart(data) {
   const ctx = document.getElementById('chartDivision');
   charts.division = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [{ data: labels.map(l => byDiv[l].length), backgroundColor: CHART_COLORS.violet, borderRadius: 8, maxBarThickness: 34 }] },
+    data: { labels, datasets: [{ data: labels.map(l => byDiv[l].length), backgroundColor: monoShades(CHART_COLORS.blue, labels.length), borderRadius: 8, maxBarThickness: 34 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'right', color: CHART_COLORS.ink, font: { weight: '700', size: 12 } } },
-      scales: { x: { beginAtZero: true, grid: { color: CHART_COLORS.line } }, y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } } }
+      plugins: { legend: { display: false }, datalabels: smartBarLabels() },
+      scales: { x: graceScale(), y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } } }
     },
     plugins: [ChartDataLabels]
   });
@@ -703,7 +778,7 @@ function renderSatisfactionTab() {
     data: { labels: qLabels, datasets: [{ data: qPct, backgroundColor: [CHART_COLORS.teal, CHART_COLORS.tealSoft, CHART_COLORS.blue, CHART_COLORS.blueSoft], borderRadius: 8, maxBarThickness: 34 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'right', color: CHART_COLORS.ink, font: { weight: '700', size: 12 }, formatter: v => v + '%' } },
+      plugins: { legend: { display: false }, datalabels: smartBarLabels({ formatter: v => v + '%', max: 100, size: 12 }) },
       scales: { x: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.line }, ticks: { callback: v => v + '%' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } }
     },
     plugins: [ChartDataLabels]
@@ -723,7 +798,10 @@ function renderSatisfactionTab() {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + '%' : '' },
+        datalabels: {
+          align: (ctx) => (Number(ctx.dataset.data[ctx.dataIndex]) || 0) >= 90 ? 'bottom' : 'top',
+          color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + '%' : '', clamp: true,
+        },
       },
       scales: { y: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.line }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
     },

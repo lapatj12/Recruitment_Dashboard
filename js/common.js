@@ -216,6 +216,7 @@ const CHART_COLORS = {
   amber: '#D9A441', amberSoft: '#EBCA8B',
   rose: '#C1443A', roseSoft: '#DE9089',
   violet: '#6B5B95', violetSoft: '#AFA3CC',
+  green: '#2E8B57', greenSoft: '#A9D8BC', greenLight: '#7FBF95',
   ink: '#1B2130', inkSoft: '#5B6472', line: '#E7E2D6'
 };
 const CHART_PALETTE = [CHART_COLORS.accent, CHART_COLORS.teal, CHART_COLORS.blue, CHART_COLORS.amber, CHART_COLORS.violet, CHART_COLORS.rose, CHART_COLORS.accentSoft, CHART_COLORS.tealSoft];
@@ -228,3 +229,46 @@ Chart.defaults.plugins.tooltip.titleFont = { weight: '600' };
 Chart.defaults.plugins.tooltip.cornerRadius = 8;
 Chart.defaults.plugins.legend.labels.usePointStyle = true;
 Chart.defaults.plugins.legend.labels.boxWidth = 8;
+
+/** Generates a single-hue set of shades (darkest/most-opaque first) for ranked
+ * bar charts, so "other dimension" charts (channel, division, etc.) read as one
+ * coordinated color family instead of an unrelated rainbow per bar. */
+function monoShades(hex, count) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return Array.from({ length: count }, (_, i) => {
+    const t = count > 1 ? i / (count - 1) : 0;
+    const alpha = 1 - t * 0.55;
+    return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+  });
+}
+
+/** A value-axis scale config with headroom so tall bars/points never crowd the
+ * frame edge — use for the linear (value) axis on every bar/line chart.
+ * `grace` reserves extra space above the data's max automatically. */
+function graceScale(extra = {}) {
+  return { beginAtZero: true, grace: '18%', grid: { color: CHART_COLORS.line }, ...extra };
+}
+
+/** Datalabels config that keeps labels legible at any bar height/length:
+ * bars close to the axis max get their label placed just inside the bar tip
+ * (white, high-contrast); shorter bars get it placed just outside (dark ink).
+ * Works for both vertical and horizontal bars since 'start'/'end' are
+ * orientation-agnostic in chartjs-plugin-datalabels.
+ * `formatter`: value -> display string. `max`: fixed number, or omitted to
+ * auto-detect from the dataset each render. */
+function smartBarLabels({ formatter, max, size = 11 } = {}) {
+  const fmt = formatter || (v => (v === null || v === undefined || v === '') ? '' : Math.round(v));
+  const getMax = (ctx) => max || Math.max(...ctx.dataset.data.map(x => Number(x) || 0), 1);
+  return {
+    display: (ctx) => {
+      const v = ctx.dataset.data[ctx.dataIndex];
+      return v !== null && v !== undefined && v !== '' && Number(v) !== 0;
+    },
+    anchor: 'end',
+    align: (ctx) => (Number(ctx.dataset.data[ctx.dataIndex]) || 0) / getMax(ctx) > 0.85 ? 'start' : 'end',
+    color: (ctx) => (Number(ctx.dataset.data[ctx.dataIndex]) || 0) / getMax(ctx) > 0.85 ? '#fff' : CHART_COLORS.ink,
+    font: { weight: '700', size },
+    formatter: fmt,
+    clamp: true,
+  };
+}
