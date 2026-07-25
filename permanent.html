@@ -62,11 +62,27 @@
       <div class="panel-grid" style="margin-top:16px;">
         <div class="panel donut-panel" style="grid-column: 1 / -1;">
           <h3>KPI Performance</h3>
-          <p class="panel-sub">Share of Effective positions closed on-KPI vs over-KPI, by position type</p>
-          <div class="donut-card-row">
-            <div class="donut-card" id="kpiDonutSpecial">
+          <p class="panel-sub">Share of Effective positions closed on-KPI vs over-KPI. Note: green marks a positive outcome in two related-but-different senses — <strong>Effective</strong> (status, e.g. in the trend chart above) and <strong>On-KPI</strong> (performance quality, below); red marks Over-KPI, meaning it took longer than target.</p>
+
+          <div class="donut-hero-card" id="kpiDonutOverall">
+            <div class="donut-hero-head">
+              <div>
+                <span class="donut-card-title" style="font-size:16px;">Overall KPI Performance</span>
+                <div class="panel-sub" style="margin:2px 0 0;">All Effective positions — Special + General combined</div>
+              </div>
+              <span class="pill pill-badge" style="background:var(--blue-soft);color:var(--blue);">All Positions</span>
+            </div>
+            <div class="donut-card-body">
+              <div class="donut-chart-wrap" id="donutWrapOverall"></div>
+              <ul class="donut-legend" id="legendOverall"></ul>
+            </div>
+          </div>
+
+          <div class="donut-breakdown-label">Breakdown by position type</div>
+          <div class="donut-card-row donut-card-row-sm">
+            <div class="donut-card donut-card-sm" id="kpiDonutSpecial">
               <div class="donut-card-head">
-                <span class="donut-card-title">KPI Performance</span>
+                <span class="donut-card-title">Special</span>
                 <span class="pill pill-badge" style="background:var(--violet-soft);color:var(--violet);">Special</span>
               </div>
               <div class="donut-card-body">
@@ -74,9 +90,9 @@
                 <ul class="donut-legend" id="legendSpecial"></ul>
               </div>
             </div>
-            <div class="donut-card" id="kpiDonutGeneral">
+            <div class="donut-card donut-card-sm" id="kpiDonutGeneral">
               <div class="donut-card-head">
-                <span class="donut-card-title">KPI Performance</span>
+                <span class="donut-card-title">General</span>
                 <span class="pill pill-badge" style="background:var(--accent-soft);color:var(--accent-dark);">General</span>
               </div>
               <div class="donut-card-body">
@@ -101,6 +117,14 @@
           <h3>Positions to Watch</h3>
           <p class="panel-sub">Effective positions that closed Over KPI — click a row for full detail, including Satisfaction feedback where available</p>
           <div id="watchList"></div>
+        </div>
+      </div>
+
+      <div class="panel-grid" style="margin-top:16px;">
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h3>At a Glance: Satisfaction &amp; Cost</h3>
+          <p class="panel-sub">Full detail on the Satisfaction and Analytics tabs</p>
+          <div id="overviewGlance" class="glance-row"></div>
         </div>
       </div>
     </div>
