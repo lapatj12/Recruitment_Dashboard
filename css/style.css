@@ -172,6 +172,8 @@ a { color: inherit; }
 .tabbar button.active { color: var(--accent-dark); border-bottom-color: var(--accent); }
 .tabbar button:hover:not(.active) { color: var(--ink); }
 .tabpane { display: none; }
+.subtabpane { display: none; margin-top: 18px; }
+.subtabpane.active { display: block; }
 .tabpane.active { display: block; }
 
 /* -------------------- Table -------------------- */
