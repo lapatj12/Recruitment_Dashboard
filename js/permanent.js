@@ -4,21 +4,7 @@
 
 const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-/** One status → one color, used everywhere status appears on this dashboard
- * (trend chart, Positions table pills) so "Effective" always reads as the
- * same green the KPI cards and donuts use, etc. */
-const STATUS_COLORS = {
-  'Effective': CHART_COLORS.green,
-  'Wait to Join': CHART_COLORS.greenLight,
-  'Screening': CHART_COLORS.blue,
-  'Final Interview': CHART_COLORS.blueSoft,
-  'Hold': CHART_COLORS.gray,
-  'Cancel': CHART_COLORS.black,
-};
-/** Total Requisition's own color — used for both the KPI card and the "Total
- * requested" line overlay on the trend chart, so the two visually "link". */
-const TOTAL_COLOR = CHART_COLORS.violet;
-/** Matching CSS-var pill background/text pairs for the same statuses, for the HTML table. */
+/** Matching CSS-var pill background/text pairs for status, used in the Positions table. */
 const STATUS_PILL = {
   'Effective': 'var(--green-soft);color:var(--green)',
   'Wait to Join': 'var(--green-light-soft);color:var(--green-light)',
@@ -94,7 +80,6 @@ function renderActiveTab() {
   switch (activeTab) {
     case 'overview':
       run(renderKPIs, data);
-      run(renderTrendChart, data);
       run(renderKpiDonuts, data);
       run(renderTTHChart, data);
       run(renderWatchList, data);
@@ -208,46 +193,6 @@ function renderKPIs(data) {
       <div class="value tnum">${c.value}</div>
       <div class="sub">${c.sub}</div>
     </div>`).join('');
-}
-
-function renderTrendChart(data) {
-  destroyChart('trend');
-  const months = MONTH_ORDER.filter(m => data.some(r => r.month === m));
-  const statuses = ['Effective', 'Wait to Join', 'Screening', 'Final Interview', 'Hold', 'Cancel'];
-  const datasets = statuses.map((s) => ({
-    type: 'bar', label: s, order: 1,
-    data: months.map(m => data.filter(r => r.month === m && r.status === s).length),
-    backgroundColor: STATUS_COLORS[s] || CHART_COLORS.inkSoft,
-    borderRadius: 5, stack: 'a',
-  }));
-  // Overlay: total positions requested per month (same color as the Total Requisition KPI card)
-  datasets.push({
-    type: 'line', label: 'Total Requested', order: 0,
-    data: months.map(m => data.filter(r => r.month === m).length),
-    borderColor: TOTAL_COLOR, backgroundColor: TOTAL_COLOR, pointBackgroundColor: TOTAL_COLOR,
-    borderWidth: 2, tension: .25, pointRadius: 4, fill: false,
-  });
-
-  const ctx = document.getElementById('chartTrend');
-  charts.trend = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: months, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom' },
-        datalabels: {
-          display: (c) => c.dataset.type === 'line' ? true : c.dataset.data[c.dataIndex] > 0,
-          color: (c) => c.dataset.type === 'line' ? TOTAL_COLOR : (['Wait to Join', 'Hold'].includes(c.dataset.label) ? CHART_COLORS.ink : '#fff'),
-          anchor: (c) => c.dataset.type === 'line' ? 'end' : undefined,
-          align: (c) => c.dataset.type === 'line' ? 'top' : undefined,
-          font: (c) => c.dataset.type === 'line' ? { weight: '700', size: 11 } : { weight: '700', size: 10 },
-        },
-      },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ...graceScale({ grace: '22%' }) } }
-    },
-    plugins: [ChartDataLabels]
-  });
 }
 
 /** "Positions to Watch" — Effective positions that closed Over KPI, worst first.
