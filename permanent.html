@@ -98,6 +98,20 @@
 
       <div class="panel-grid" style="margin-top:16px;">
         <div class="panel" style="grid-column: 1 / -1;">
+          <h3>Probation Outcome</h3>
+          <p class="panel-sub">% Not Pass is of positions with a final probation outcome (Pass or Not Pass) — Resign, Under Review, Not Started and Internal are shown separately since they're not a pass/fail result</p>
+          <div class="donut-card-body" style="justify-content:center; gap:40px; margin-bottom:20px;">
+            <div class="donut-chart-wrap" id="donutWrapProbation" style="width:148px;height:148px;"></div>
+          </div>
+          <div class="donut-breakdown-label">Final Outcome</div>
+          <div class="kpi-grid kpi-grid-lg" id="kpiProbationFinal" style="margin-bottom:20px;"></div>
+          <div class="donut-breakdown-label">Other Status <span style="text-transform:none; font-weight:400;">(not a pass/fail result)</span></div>
+          <div class="kpi-grid" id="kpiProbationOther" style="margin-bottom:0;"></div>
+        </div>
+      </div>
+
+      <div class="panel-grid" style="margin-top:16px;">
+        <div class="panel" style="grid-column: 1 / -1;">
           <h3>Avg. Time-to-Hire by Location</h3>
           <p class="panel-sub">Average number of days from approval to final close (Effective only)</p>
           <div class="chart-wrap"><canvas id="chartTTH"></canvas></div>
@@ -176,6 +190,7 @@
               <th data-key="approved_date">Approved</th>
               <th data-key="final_date">Final</th>
               <th data-key="kpi">KPI</th>
+              <th data-key="probation_status">Probation</th>
               <th data-key="satisfaction">Satisfaction</th>
             </tr>
           </thead>
