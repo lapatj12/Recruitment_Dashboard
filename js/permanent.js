@@ -81,6 +81,7 @@ function renderActiveTab() {
     case 'overview':
       run(renderKPIs, data);
       run(renderKpiDonuts, data);
+      run(renderProbationOutcome, data);
       run(renderTTHChart, data);
       run(renderWatchList, data);
       run(renderOverviewGlance);
@@ -328,6 +329,49 @@ function renderKpiDonutCard(wrapId, legendId, rows) {
   `;
 }
 
+/** Probation Outcome — Pass vs Not Pass as the headline donut (reusing the same
+ * green/rose visual language as On-KPI/Over-KPI), with the full breakdown shown
+ * as KPI cards (count + %) below rather than a plain legend list. Resign/Under
+ * Review/Not Started/Internal are kept out of the Pass/Not Pass % since they
+ * aren't a pass/fail result and would distort the rate if lumped in. */
+function renderProbationOutcome(data) {
+  const counts = { Pass: 0, 'Not Pass': 0, Resign: 0, 'Under Review': 0, 'Not Started': 0, Internal: 0 };
+  data.forEach(r => { if (counts.hasOwnProperty(r.probation_status)) counts[r.probation_status]++; });
+
+  const pass = counts['Pass'], notPass = counts['Not Pass'];
+  const decided = pass + notPass;
+  const notPassPct = decided ? Math.round(notPass / decided * 100) : null;
+  const tracked = Object.values(counts).reduce((s, v) => s + v, 0);
+
+  const wrap = document.getElementById('donutWrapProbation');
+  wrap.innerHTML = buildDonutSVG(pass, notPass) +
+    `<div class="donut-center-label"><div class="pct">${notPassPct !== null ? notPassPct + '%' : '–'}</div><div class="cap">NOT PASS</div></div>`;
+
+  const finalCards = [
+    { label: 'Pass', value: pass, sub: decided ? fmtPct(pass / decided) + ' of decided' : '–', color: 'var(--green)' },
+    { label: 'Not Pass', value: notPass, sub: decided ? fmtPct(notPass / decided) + ' of decided' : '–', color: 'var(--rose)' },
+  ];
+  document.getElementById('kpiProbationFinal').innerHTML = finalCards.map(c => `
+    <div class="kpi-card" style="--bar-color:${c.color}">
+      <div class="label">${c.label}</div>
+      <div class="value tnum">${fmtNum(c.value)}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+
+  const otherCards = [
+    { label: 'Resign (during probation)', value: counts['Resign'], sub: tracked ? fmtPct(counts['Resign'] / tracked) + ' of tracked' : '–', color: 'var(--gray)' },
+    { label: 'Under Review', value: counts['Under Review'], sub: tracked ? fmtPct(counts['Under Review'] / tracked) + ' of tracked' : '–', color: 'var(--amber)' },
+    { label: 'Not Started', value: counts['Not Started'], sub: tracked ? fmtPct(counts['Not Started'] / tracked) + ' of tracked' : '–', color: 'var(--blue)' },
+    { label: 'Internal', value: counts['Internal'], sub: tracked ? fmtPct(counts['Internal'] / tracked) + ' of tracked' : '–', color: 'var(--violet)' },
+  ];
+  document.getElementById('kpiProbationOther').innerHTML = otherCards.map(c => `
+    <div class="kpi-card" style="--bar-color:${c.color}">
+      <div class="label">${c.label}</div>
+      <div class="value tnum">${fmtNum(c.value)}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+}
+
 function renderTTHChart(data) {
   destroyChart('tth');
   const effRows = data.filter(r => r.status === 'Effective' && r.diff_days !== '' && !isNaN(Number(r.diff_days)));
@@ -453,6 +497,7 @@ function renderPositionsTable() {
       <td class="tnum">${r.approved_date || '–'}</td>
       <td class="tnum">${r.final_date || '–'}</td>
       <td>${r.kpi || '–'}</td>
+      <td>${r.probation_status || '–'}</td>
       <td class="tnum">${sat && sat.pct !== null ? sat.pct + '%' : '–'}</td>
     </tr>`;
   }).join('');
