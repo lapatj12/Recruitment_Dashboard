@@ -18,6 +18,24 @@ function xClean(v) {
   return String(v).trim();
 }
 
+/** Light text consolidation only — no reclassification into new categories.
+ * Strips a trailing parenthetical (e.g. "ได้งานใหม่ (มิตชูบิชิ)" -> "ได้งานใหม่")
+ * so near-duplicate free-text entries group together in charts, without
+ * inventing any taxonomy the source data doesn't actually contain. */
+function normalizeReasonDetail(v) {
+  if (!v) return v;
+  return v.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+/** Derives Male/Female from the Thai name-prefix column (นาย = Mr., น.ส./นาง = Ms./Mrs.).
+ * Returns '' (unknown) for anything else rather than guessing. */
+function genderFromTitle(title) {
+  const t = xClean(title);
+  if (t === 'นาย') return 'Male';
+  if (t === 'น.ส.' || t === 'นาง' || t === 'นางสาว') return 'Female';
+  return '';
+}
+
 function normCompany(c) {
   c = xClean(c);
   const u = c.toUpperCase();
@@ -59,7 +77,7 @@ function parsePermanentWorkbook(wb) {
       status: xClean(row['Recruitment Status']),
       position: xClean(row['Position_Announce']) || xClean(row['Position_Request']),
       channel: xClean(row['Recruitment Channel']),
-      division: xClean(row['Division']), dept: xClean(row['Dept']),
+      division: xClean(row['Division']), dept: xClean(row['Dept']), probation_status: xClean(row['Probation Status']),
       approved_date: xClean(row['Approved_Date']), target_date: xClean(row['Target_Date']), final_date: xClean(row['Final Date']),
       diff_days: xClean(row['Diff Date']), kpi: xClean(row['KPI']),
     });
@@ -136,9 +154,11 @@ function parseSubcontractWorkbook(wb) {
   for (const row of turnRows) {
     if (row['วันที่มีผล'] == null) continue;
     turnover.push({
+      employee_id: xClean(row['รหัสพนักงาน']),
       effective_date: xClean(row['วันที่มีผล']), position: xClean(row['ตำแหน่ง']), division: xClean(row['ฝ่าย']),
       department: xClean(row['ส่วน']), work_unit: xClean(row['หน่วยงาน']), start_date: xClean(row['วันเข้างาน']),
       age: xClean(row['อายุตัว']), tenure_years: xClean(row['อายุงาน']), reason: xClean(row['เหตุผลการลาออก']),
+      detail: normalizeReasonDetail(xClean(row['รายละเอียด'])),
     });
   }
 
@@ -173,7 +193,7 @@ function parseSubcontractWorkbook(wb) {
       out.push({
         company: companyLabel, employee_id: xClean(row['รหัสพนักงาน']), name: xClean(row['ชื่อนาม-สกุล']), position: xClean(row['ตำแหน่ง']),
         division: xClean(row['ฝ่าย']), department: xClean(row['ส่วน']), work_unit: xClean(row['หน่วยงาน']),
-        location: xClean(row['สถานที่ทำงาน']), start_date: xClean(row['วันเริ่มงาน']),
+        location: xClean(row['สถานที่ทำงาน']), start_date: xClean(row['วันเริ่มงาน']), gender: genderFromTitle(row['คำนำหน้า']),
         age: xClean(row['อายุตัว']), tenure_years: xClean(row['อายุงาน']),
       });
     }
