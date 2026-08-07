@@ -44,6 +44,13 @@
         <div class="filter-actions"><button class="btn-reset" id="resetOverview">Clear filters</button></div>
       </div>
       <div class="kpi-grid" id="kpiOverview"></div>
+      <details class="data-source-note">
+        <summary>Where these numbers come from</summary>
+        <ul>
+          <li><strong>Current Total Headcount / Manpower / HR Digest / Average Age / Average Tenure</strong> — live snapshot as of the last file update, counted directly from the "รายชื่อพนักงาน Manpower" and "รายชื่อพนักงาน HRD" sheets (every current row = one employee). Not filtered by year.</li>
+          <li><strong>Net Headcount Change</strong> — "Started" is every row in the "Recruitment" sheet with status "เริ่มงานแล้ว", all-time (not limited to this year). "Resigned" is every row in the "Turnover" sheet, all-time. Both respect the Company filter above: hires by the Recruitment sheet's own company column, resignations by the employee ID prefix (MAN/HRD), falling back to an estimate from division for older-format IDs.</li>
+        </ul>
+      </details>
       <div class="panel-grid">
         <div class="panel">
           <h3>Headcount by Service Provider</h3>
@@ -64,28 +71,39 @@
         <div class="filter-actions"><button class="btn-reset" id="resetRecruit">Clear filters</button></div>
       </div>
       <div class="kpi-grid" id="kpiRecruit"></div>
+
       <div class="panel-grid">
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h3>Recruitment Funnel Overview</h3>
+          <p class="panel-sub">Requisitions → Screening → Interview → Confirmed → Started (each stage = positions that reached it, not candidate headcount)</p>
+          <div class="chart-wrap" style="height:130px;"><canvas id="chartFunnel"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel-grid" style="margin-top:16px;">
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h3>Time-to-Hire by Company</h3>
+          <p class="panel-sub">Send JD → Confirmed Date, vs. the 14-day KPI target — green/blue meets target, orange/red exceeds it</p>
+          <div class="chart-wrap"><canvas id="chartLeadTime"></canvas></div>
+          <div id="leadTimeLegend" class="chart-legend-note"></div>
+        </div>
+      </div>
+
+      <div class="panel-grid" style="margin-top:16px;">
         <div class="panel">
           <h3>Sourcing Status by Company</h3>
           <p class="panel-sub">Click a bar to see the position list</p>
           <div class="chart-wrap"><canvas id="chartRecruitStatus"></canvas></div>
         </div>
         <div class="panel">
-          <h3>Avg. Lead Time (Days from Request to Confirmed)</h3>
-          <p class="panel-sub">By service provider</p>
-          <div class="chart-wrap"><canvas id="chartLeadTime"></canvas></div>
+          <h3>SLA Benchmark Compliance</h3>
+          <p class="panel-sub">On-KPI (≤14 days) vs Over-KPI (&gt;14 days), by service provider</p>
+          <div class="chart-wrap"><canvas id="chartSla"></canvas></div>
         </div>
       </div>
-      <div class="panel-grid" style="margin-top:16px;">
-        <div class="panel" style="grid-column: 1 / -1;">
-          <h3>Recruitment SLA Breakdown (SLA = 14 days)</h3>
-          <p class="panel-sub">On-KPI (≤14 days) vs Over-KPI (&gt;14 days) from request to confirmed, by service provider</p>
-          <div class="sla-layout">
-            <div class="chart-wrap"><canvas id="chartSla"></canvas></div>
-            <div id="slaSummary" style="display:flex; flex-direction:column; gap:10px; padding-top:8px;"></div>
-          </div>
-        </div>
-      </div>
+      <div id="slaSummary" class="glance-row" style="margin-top:16px;"></div>
+
+      <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: Time-to-Hire and SLA Benchmark Compliance only count positions where "Confirmed Date" has actually been filled in — right now that's a small number of the total requests, since most are still blank in the source file (the formula shows an inflated placeholder using today's date until it's filled in, which isn't a real duration). These numbers will fill out as HR records more Confirmed Dates.</p>
     </div>
 
     <!-- TAB 3: Turnover -->
