@@ -340,6 +340,23 @@ table.data-table tbody tr.clickable-row:hover { background: var(--accent-soft); 
 .glance-card .gc-sub { font-size: 11.5px; color: var(--ink-faint); margin-top: 6px; }
 .glance-card .gc-link { font-size: 12px; font-weight: 700; color: var(--accent-dark); margin-top: 12px; display: flex; align-items: center; gap: 4px; }
 
+/* -------------------- Data source disclosure -------------------- */
+.data-source-note { margin: -8px 0 22px; font-size: 12.5px; color: var(--ink-soft); }
+.data-source-note summary { cursor: pointer; font-weight: 600; color: var(--ink-faint); padding: 4px 0; }
+.data-source-note summary:hover { color: var(--accent-dark); }
+.data-source-note ul { margin: 10px 0 0; padding-left: 18px; line-height: 1.6; }
+.data-source-note li { margin-bottom: 8px; }
+
+.chart-legend-note { display: flex; justify-content: center; margin-top: 10px; }
+.chart-legend-note .pl-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-soft); }
+
+/* -------------------- Recruitment pipeline timeline -------------------- */
+.pipeline-legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 14px; }
+.pipeline-legend .pl-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.pipeline-legend .pl-dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.pipeline-legend .pl-label { color: var(--ink-soft); }
+.pipeline-legend .pl-val { font-family: var(--font-num); font-weight: 700; color: var(--ink); margin-left: 2px; }
+
 /* -------------------- SLA breakdown layout -------------------- */
 .sla-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
 @media (max-width: 780px) { .sla-layout { grid-template-columns: 1fr; } }
@@ -355,6 +372,46 @@ table.data-table tbody tr.clickable-row:hover { background: var(--accent-soft); 
 .cost-card .cc-row { display: flex; justify-content: space-between; font-size: 12.5px; }
 .cost-card .cc-row .cc-lbl { color: var(--ink-faint); }
 .cost-card .cc-row .cc-val { font-family: var(--font-num); font-weight: 600; color: var(--ink); }
+
+/* -------------------------------------------------------------------------
+   Larger text on the Permanent dashboard, for cleaner report screenshots.
+   Scoped to body.page-permanent only — Subcontract is unaffected.
+   ------------------------------------------------------------------------- */
+body.page-permanent .kpi-card .label { font-size: 13.5px; }
+body.page-permanent .kpi-card .value { font-size: 34px; }
+body.page-permanent .kpi-card .sub { font-size: 13px; }
+body.page-permanent .kpi-grid-lg .kpi-card .value { font-size: 42px; }
+body.page-permanent .kpi-grid-lg .kpi-card .label { font-size: 14.5px; }
+
+body.page-permanent .panel h3 { font-size: 17px; }
+body.page-permanent .panel .panel-sub { font-size: 13.5px; }
+
+body.page-permanent .donut-center-label .pct { font-size: 31px; }
+body.page-permanent .donut-center-label .cap { font-size: 12px; }
+body.page-permanent .donut-hero-card .donut-center-label .pct { font-size: 38px; }
+body.page-permanent .donut-hero-card .donut-center-label .cap { font-size: 13.5px; }
+body.page-permanent .donut-legend li { font-size: 16px; }
+body.page-permanent .donut-legend .val { font-size: 19px; }
+body.page-permanent .donut-legend .sub { font-size: 15px; }
+body.page-permanent .donut-hero-card .donut-legend li { font-size: 18px; }
+body.page-permanent .donut-hero-card .donut-legend .val { font-size: 22px; }
+body.page-permanent .donut-hero-card .donut-legend .sub { font-size: 16px; }
+body.page-permanent .donut-card-row-sm .donut-center-label .pct { font-size: 23px; }
+body.page-permanent .donut-card-row-sm .donut-center-label .cap { font-size: 10.5px; }
+body.page-permanent .donut-card-row-sm .donut-legend li { font-size: 15px; }
+body.page-permanent .donut-card-row-sm .donut-legend .val { font-size: 17px; }
+body.page-permanent .donut-card-row-sm .donut-legend .sub { font-size: 13.5px; }
+body.page-permanent .donut-breakdown-label { font-size: 13px; }
+body.page-permanent .pill-badge { font-size: 13px; }
+
+body.page-permanent table.data-table { font-size: 14.5px; }
+body.page-permanent .filter-field label { font-size: 12px; }
+body.page-permanent .msdd-btn { font-size: 14px; }
+body.page-permanent .footer-note { font-size: 13px; }
+body.page-permanent .glance-card .gc-value { font-size: 29px; }
+body.page-permanent .glance-card .gc-label { font-size: 13px; }
+body.page-permanent .watch-row .wr-position { font-size: 14.5px; }
+body.page-permanent .insight-list li { font-size: 14.5px; }
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
