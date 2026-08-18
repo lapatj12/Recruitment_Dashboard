@@ -124,6 +124,12 @@ a { color: inherit; }
   padding: 6px; z-index: 30;
 }
 .msdd.open .msdd-panel { display: block; }
+.msdd-quick { display: flex; gap: 6px; padding: 2px 4px 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+.msdd-quick-btn {
+  border: none; background: none; cursor: pointer; font-size: 12px; font-weight: 700;
+  color: var(--accent-dark); padding: 3px 6px; border-radius: 5px;
+}
+.msdd-quick-btn:hover { background: var(--accent-soft); }
 .msdd-opt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13.5px; cursor: pointer; }
 .msdd-opt:hover { background: var(--bg); }
 .msdd-opt input { accent-color: var(--accent); }
