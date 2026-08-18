@@ -153,6 +153,20 @@ function buildMultiSelect(container, label, options, onChange, labelFn) {
   panel.className = 'msdd-panel';
   const selected = new Set();
 
+  const quickActions = document.createElement('div');
+  quickActions.className = 'msdd-quick';
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.type = 'button';
+  selectAllBtn.className = 'msdd-quick-btn';
+  selectAllBtn.textContent = 'Select All';
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'msdd-quick-btn';
+  clearBtn.textContent = 'Clear';
+  quickActions.appendChild(selectAllBtn);
+  quickActions.appendChild(clearBtn);
+  panel.appendChild(quickActions);
+
   options.forEach(opt => {
     if (opt === '' || opt === null || opt === undefined) return;
     const row = document.createElement('label');
@@ -165,6 +179,19 @@ function buildMultiSelect(container, label, options, onChange, labelFn) {
       onChange(selected.size ? selected : null);
     });
     panel.appendChild(row);
+  });
+
+  selectAllBtn.addEventListener('click', () => {
+    options.forEach(opt => { if (opt !== '' && opt !== null && opt !== undefined) selected.add(opt); });
+    panel.querySelectorAll('input').forEach(i => i.checked = true);
+    refreshBtn();
+    onChange(selected.size ? selected : null);
+  });
+  clearBtn.addEventListener('click', () => {
+    selected.clear();
+    panel.querySelectorAll('input').forEach(i => i.checked = false);
+    refreshBtn();
+    onChange(null);
   });
 
   function refreshBtn() {
@@ -246,6 +273,59 @@ function monoShades(hex, count) {
 /** A value-axis scale config with headroom so tall bars/points never crowd the
  * frame edge — use for the linear (value) axis on every bar/line chart.
  * `grace` reserves extra space above the data's max automatically. */
+/** Draws a horizontal reference line across the FULL chart width at a fixed
+ * value — unlike a normal line dataset, this doesn't need 2+ category points
+ * to render (a line dataset with only 1 x-axis label has nothing to connect
+ * to and silently draws nothing). Use for KPI/target/benchmark lines that
+ * must show even when there's only one bar. */
+function horizontalRefLinePlugin(value, opts = {}) {
+  const { color = CHART_COLORS.ink, dash = [6, 4], width = 2 } = opts;
+  return {
+    id: 'hRefLine_' + Math.random().toString(36).slice(2),
+    afterDraw(chart) {
+      const v = typeof value === 'function' ? value() : value;
+      if (v === null || v === undefined) return;
+      const yScale = chart.scales.y;
+      const xScale = chart.scales.x;
+      if (!yScale || !xScale) return;
+      const y = yScale.getPixelForValue(v);
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(xScale.left, y);
+      ctx.lineTo(xScale.right, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+}
+
+/** Builds a 2-segment donut ring as inline SVG (no <canvas>/Chart.js involved,
+ * so it's unaffected by any canvas-context issues). Shared by both dashboards
+ * for a consistent "on-target vs over-target" visual language (green/red). */
+function buildDonutSVG(onValue, overValue) {
+  const total = onValue + overValue;
+  const r = 40, cx = 50, cy = 50, sw = 14;
+  const circumference = 2 * Math.PI * r;
+  if (!total) {
+    return `<svg viewBox="0 0 100 100" width="148" height="148">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.line}" stroke-width="${sw}"/>
+    </svg>`;
+  }
+  const onLen = (onValue / total) * circumference;
+  const overLen = (overValue / total) * circumference;
+  return `<svg viewBox="0 0 100 100" width="148" height="148" style="transform:rotate(-90deg)">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.line}" stroke-width="${sw}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.green}" stroke-width="${sw}"
+      stroke-dasharray="${onLen} ${circumference - onLen}" stroke-dashoffset="0"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.rose}" stroke-width="${sw}"
+      stroke-dasharray="${overLen} ${circumference - overLen}" stroke-dashoffset="${-onLen}"/>
+  </svg>`;
+}
+
 function graceScale(extra = {}) {
   return { beginAtZero: true, grace: '18%', grid: { color: CHART_COLORS.line }, ...extra };
 }
