@@ -2,6 +2,11 @@
    Permanent Recruitment Dashboard
    ========================================================================== */
 
+// Larger in-chart text (axis ticks, legends, tooltips) for cleaner report
+// screenshots. Safe to set globally here since this file only loads on the
+// Permanent page — Subcontract keeps common.js's smaller default.
+Chart.defaults.font.size = 13;
+
 const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 /** Matching CSS-var pill background/text pairs for status, used in the Positions table. */
@@ -48,6 +53,7 @@ async function init() {
   document.getElementById('posModalClose').addEventListener('click', () => {
     document.getElementById('posModal').style.display = 'none';
   });
+  initProbationModal();
   initPositionsTable();
 
   renderAll();
@@ -289,26 +295,6 @@ function renderKpiDonuts(data) {
  * This avoids a class of environment-specific failures where some browsers/security
  * software block canvas 2D context creation ("can't acquire context from the given
  * item"), which otherwise breaks Chart.js silently. */
-function buildDonutSVG(onKpi, overKpi) {
-  const total = onKpi + overKpi;
-  const r = 40, cx = 50, cy = 50, sw = 14;
-  const circumference = 2 * Math.PI * r;
-  if (!total) {
-    return `<svg viewBox="0 0 100 100" width="148" height="148">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.line}" stroke-width="${sw}"/>
-    </svg>`;
-  }
-  const onLen = (onKpi / total) * circumference;
-  const overLen = (overKpi / total) * circumference;
-  return `<svg viewBox="0 0 100 100" width="148" height="148" style="transform:rotate(-90deg)">
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.line}" stroke-width="${sw}"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.green}" stroke-width="${sw}"
-      stroke-dasharray="${onLen} ${circumference - onLen}" stroke-dashoffset="0"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.rose}" stroke-width="${sw}"
-      stroke-dasharray="${overLen} ${circumference - overLen}" stroke-dashoffset="${-onLen}"/>
-  </svg>`;
-}
-
 function renderKpiDonutCard(wrapId, legendId, rows) {
   const onKpi = rows.filter(r => r.kpi === 'ON KPI').length;
   const overKpi = rows.filter(r => r.kpi === 'OVER KPI').length;
@@ -336,7 +322,13 @@ function renderKpiDonutCard(wrapId, legendId, rows) {
  * aren't a pass/fail result and would distort the rate if lumped in. */
 function renderProbationOutcome(data) {
   const counts = { Pass: 0, 'Not Pass': 0, Resign: 0, 'Under Review': 0, 'Not Started': 0, Internal: 0 };
-  data.forEach(r => { if (counts.hasOwnProperty(r.probation_status)) counts[r.probation_status]++; });
+  probRowsByStatus = {};
+  data.forEach(r => {
+    if (counts.hasOwnProperty(r.probation_status)) {
+      counts[r.probation_status]++;
+      (probRowsByStatus[r.probation_status] = probRowsByStatus[r.probation_status] || []).push(r);
+    }
+  });
 
   const pass = counts['Pass'], notPass = counts['Not Pass'];
   const decided = pass + notPass;
@@ -351,25 +343,91 @@ function renderProbationOutcome(data) {
     { label: 'Pass', value: pass, sub: decided ? fmtPct(pass / decided) + ' of decided' : '–', color: 'var(--green)' },
     { label: 'Not Pass', value: notPass, sub: decided ? fmtPct(notPass / decided) + ' of decided' : '–', color: 'var(--rose)' },
   ];
-  document.getElementById('kpiProbationFinal').innerHTML = finalCards.map(c => `
-    <div class="kpi-card" style="--bar-color:${c.color}">
-      <div class="label">${c.label}</div>
-      <div class="value tnum">${fmtNum(c.value)}</div>
-      <div class="sub">${c.sub}</div>
-    </div>`).join('');
+  document.getElementById('kpiProbationFinal').innerHTML = finalCards.map(probCardHTML).join('');
 
   const otherCards = [
-    { label: 'Resign (during probation)', value: counts['Resign'], sub: tracked ? fmtPct(counts['Resign'] / tracked) + ' of tracked' : '–', color: 'var(--gray)' },
+    { label: 'Resign (during probation)', status: 'Resign', value: counts['Resign'], sub: tracked ? fmtPct(counts['Resign'] / tracked) + ' of tracked' : '–', color: 'var(--gray)' },
     { label: 'Under Review', value: counts['Under Review'], sub: tracked ? fmtPct(counts['Under Review'] / tracked) + ' of tracked' : '–', color: 'var(--amber)' },
     { label: 'Not Started', value: counts['Not Started'], sub: tracked ? fmtPct(counts['Not Started'] / tracked) + ' of tracked' : '–', color: 'var(--blue)' },
     { label: 'Internal', value: counts['Internal'], sub: tracked ? fmtPct(counts['Internal'] / tracked) + ' of tracked' : '–', color: 'var(--violet)' },
   ];
-  document.getElementById('kpiProbationOther').innerHTML = otherCards.map(c => `
-    <div class="kpi-card" style="--bar-color:${c.color}">
+  document.getElementById('kpiProbationOther').innerHTML = otherCards.map(probCardHTML).join('');
+}
+
+/* ---------------- Probation name-list popup ----------------
+ * Clicking a Probation Outcome card lists the people behind that number.
+ * Uses the same filtered rows as the cards, so the list always matches the count. */
+let probRowsByStatus = {};
+
+function probCardHTML(c) {
+  const status = c.status || c.label;
+  const clickable = c.value > 0;
+  return `
+    <div class="kpi-card${clickable ? ' kpi-clickable' : ''}" style="--bar-color:${c.color}"
+         ${clickable ? `data-prob-status="${status}" role="button" tabindex="0" title="Click to see the list"` : ''}>
       <div class="label">${c.label}</div>
       <div class="value tnum">${fmtNum(c.value)}</div>
       <div class="sub">${c.sub}</div>
-    </div>`).join('');
+      ${clickable ? '<div class="kpi-view-link">View list →</div>' : ''}
+    </div>`;
+}
+
+function escHTML(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function initProbationModal() {
+  const modal = document.getElementById('probModal');
+  const close = () => { modal.style.display = 'none'; };
+  document.getElementById('probModalClose').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.style.display !== 'none') close(); });
+
+  // One delegated listener covers both card groups, surviving re-renders on filter changes
+  ['kpiProbationFinal', 'kpiProbationOther'].forEach(id => {
+    const el = document.getElementById(id);
+    const open = e => {
+      const card = e.target.closest('[data-prob-status]');
+      if (card) showProbationList(card.dataset.probStatus);
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } });
+  });
+}
+
+function showProbationList(status) {
+  const labels = { Resign: 'Resign (during probation)' };
+  const rows = (probRowsByStatus[status] || []).slice()
+    .sort((a, b) => String(b.join_date).localeCompare(String(a.join_date)));
+
+  document.getElementById('probModalTitle').textContent = `Probation: ${labels[status] || status}`;
+  document.getElementById('probModalSub').textContent =
+    `${rows.length} ${rows.length === 1 ? 'person' : 'people'} · matches the current filters`;
+
+  const body = document.getElementById('probModalBody');
+  if (!rows.length) { body.innerHTML = '<div class="watch-empty">No records found</div>'; }
+  else {
+    body.innerHTML = `
+      <div class="table-scroll">
+        <table class="data-table prob-table">
+          <thead><tr>
+            <th>#</th><th>Name</th><th>Employee ID</th><th>Position</th><th>Division / Dept</th><th>Join Date</th><th>Remark</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r, i) => `<tr>
+              <td class="tnum">${i + 1}</td>
+              <td class="prob-name">${escHTML(r.emp_name) || '<span class="muted">Not recorded</span>'}</td>
+              <td class="tnum">${escHTML(r.emp_id) || '–'}</td>
+              <td>${escHTML(tr(r.position)) || '–'}</td>
+              <td>${escHTML(tr(r.division)) || '–'}${r.dept ? `<div class="muted">${escHTML(tr(r.dept))}</div>` : ''}</td>
+              <td class="tnum" style="white-space:nowrap;">${escHTML(r.join_date) || '–'}</td>
+              <td>${escHTML(r.remark) || '–'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+  document.getElementById('probModal').style.display = 'flex';
 }
 
 function renderTTHChart(data) {
@@ -388,7 +446,7 @@ function renderTTHChart(data) {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: smartBarLabels({ formatter: v => v + 'd' }),
+        datalabels: smartBarLabels({ formatter: v => v + 'd', size: 13 }),
         tooltip: { callbacks: { label: (c) => c.parsed.y + ' days average' } }
       },
       scales: { y: graceScale(), x: { grid: { display: false } } }
@@ -430,7 +488,7 @@ function renderChannelChart(data) {
       },
       plugins: {
         legend: { display: false },
-        datalabels: smartBarLabels(),
+        datalabels: smartBarLabels({ size: 13 }),
         tooltip: { callbacks: { label: (c) => c.parsed.x + ' position(s) — click to see the list' } }
       },
       scales: { x: graceScale(), y: { grid: { display: false } } }
@@ -570,7 +628,7 @@ function renderEffectiveRateChart(data) {
         legend: { display: false },
         datalabels: {
           align: (ctx) => (Number(ctx.dataset.data[ctx.dataIndex]) || 0) >= 90 ? 'bottom' : 'top',
-          color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v + '%', clamp: true,
+          color: CHART_COLORS.ink, font: { weight: '700', size: 13 }, formatter: v => v + '%', clamp: true,
         },
         tooltip: { callbacks: { label: (c) => c.parsed.y + '% Effective' } }
       },
@@ -596,7 +654,7 @@ function renderTTHTrendChart(data) {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + 'd' : '', clamp: true },
+        datalabels: { align: 'top', color: CHART_COLORS.ink, font: { weight: '700', size: 13 }, formatter: v => v !== null ? v + 'd' : '', clamp: true },
         tooltip: { callbacks: { label: (c) => c.parsed.y + ' days average' } }
       },
       scales: { y: graceScale(), x: { grid: { display: false } } }
@@ -674,8 +732,8 @@ function renderDivisionChart(data) {
     data: { labels, datasets: [{ data: labels.map(l => byDiv[l].length), backgroundColor: monoShades(CHART_COLORS.blue, labels.length), borderRadius: 8, maxBarThickness: 34 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, datalabels: smartBarLabels() },
-      scales: { x: graceScale(), y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } } }
+      plugins: { legend: { display: false }, datalabels: smartBarLabels({ size: 13 }) },
+      scales: { x: graceScale(), y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 13 } } } }
     },
     plugins: [ChartDataLabels]
   });
@@ -780,8 +838,8 @@ function renderSatisfactionTab() {
     data: { labels: qLabels, datasets: [{ data: qPct, backgroundColor: [CHART_COLORS.teal, CHART_COLORS.tealSoft, CHART_COLORS.blue, CHART_COLORS.blueSoft], borderRadius: 8, maxBarThickness: 34 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, datalabels: smartBarLabels({ formatter: v => v + '%', max: 100, size: 12 }) },
-      scales: { x: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.line }, ticks: { callback: v => v + '%' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } }
+      plugins: { legend: { display: false }, datalabels: smartBarLabels({ formatter: v => v + '%', max: 100, size: 14 }) },
+      scales: { x: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.line }, ticks: { callback: v => v + '%' } }, y: { grid: { display: false }, ticks: { font: { size: 13 } } } }
     },
     plugins: [ChartDataLabels]
   });
@@ -802,7 +860,7 @@ function renderSatisfactionTab() {
         legend: { display: false },
         datalabels: {
           align: (ctx) => (Number(ctx.dataset.data[ctx.dataIndex]) || 0) >= 90 ? 'bottom' : 'top',
-          color: CHART_COLORS.ink, font: { weight: '700', size: 11 }, formatter: v => v !== null ? v + '%' : '', clamp: true,
+          color: CHART_COLORS.ink, font: { weight: '700', size: 13 }, formatter: v => v !== null ? v + '%' : '', clamp: true,
         },
       },
       scales: { y: { beginAtZero: true, max: 100, grid: { color: CHART_COLORS.line }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
