@@ -315,43 +315,60 @@ function renderKpiDonutCard(wrapId, legendId, rows) {
   `;
 }
 
-/** Probation Outcome — Pass vs Not Pass as the headline donut (reusing the same
- * green/rose visual language as On-KPI/Over-KPI), with the full breakdown shown
- * as KPI cards (count + %) below rather than a plain legend list. Resign/Under
- * Review/Not Started/Internal are kept out of the Pass/Not Pass % since they
- * aren't a pass/fail result and would distort the rate if lumped in. */
+/** Probation Outcome — every status is shown as a share of ALL people who joined
+ * (Recruitment Status = Effective), so HR can read it as: "X people joined —
+ * this many passed, this many didn't, this many resigned, this many are still
+ * under review". The donut shows the whole mix, with total joined in the centre. */
+const PROB_STATUSES = [
+  { status: 'Pass',         label: 'Pass',                      color: 'var(--green)',  hex: 'green',  group: 'done' },
+  { status: 'Not Pass',     label: 'Not Pass',                  color: 'var(--rose)',   hex: 'rose',   group: 'done' },
+  { status: 'Resign',       label: 'Resign (during probation)', color: 'var(--gray)',   hex: 'gray',   group: 'done' },
+  { status: 'Under Review', label: 'Under Review',              color: 'var(--amber)',  hex: 'amber',  group: 'open' },
+  { status: 'Not Started',  label: 'Not Started',               color: 'var(--blue)',   hex: 'blue',   group: 'open' },
+  { status: 'Internal',     label: 'Internal',                  color: 'var(--violet)', hex: 'violet', group: 'open' },
+  // Effective rows whose Probation Status is blank (or an unexpected value) — shown so the cards always add up to Joined
+  { status: 'Not Recorded', label: 'Not Recorded',              color: 'var(--gray-soft)', hex: 'graySoft', group: 'open' },
+];
+
+/** Multi-segment donut ring (same size/stroke as buildDonutSVG). */
+function buildMultiDonutSVG(segments) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const r = 40, cx = 50, cy = 50, sw = 14, C = 2 * Math.PI * r;
+  let rings = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CHART_COLORS.line}" stroke-width="${sw}"/>`;
+  let offset = 0;
+  if (total) segments.forEach(seg => {
+    if (!seg.value) return;
+    const len = seg.value / total * C;
+    rings += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${sw}"
+      stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-offset}"><title>${seg.label}: ${seg.value}</title></circle>`;
+    offset += len;
+  });
+  return `<svg viewBox="0 0 100 100" width="148" height="148" style="transform:rotate(-90deg)">${rings}</svg>`;
+}
+
 function renderProbationOutcome(data) {
-  const counts = { Pass: 0, 'Not Pass': 0, Resign: 0, 'Under Review': 0, 'Not Started': 0, Internal: 0 };
   probRowsByStatus = {};
-  data.forEach(r => {
-    if (counts.hasOwnProperty(r.probation_status)) {
-      counts[r.probation_status]++;
-      (probRowsByStatus[r.probation_status] = probRowsByStatus[r.probation_status] || []).push(r);
-    }
+  PROB_STATUSES.forEach(p => { probRowsByStatus[p.status] = []; });
+  // "Joined" = Recruitment Status is Effective (the person has actually started work)
+  const effective = data.filter(r => r.status === 'Effective');
+  effective.forEach(r => {
+    const key = probRowsByStatus[r.probation_status] && r.probation_status !== 'Not Recorded' ? r.probation_status : 'Not Recorded';
+    probRowsByStatus[key].push(r);
   });
 
-  const pass = counts['Pass'], notPass = counts['Not Pass'];
-  const decided = pass + notPass;
-  const notPassPct = decided ? Math.round(notPass / decided * 100) : null;
-  const tracked = Object.values(counts).reduce((s, v) => s + v, 0);
+  const joined = effective.length;
+  const pctOf = n => joined ? fmtPct(n / joined) + ` of ${fmtNum(joined)} joined` : '–';
 
-  const wrap = document.getElementById('donutWrapProbation');
-  wrap.innerHTML = buildDonutSVG(pass, notPass) +
-    `<div class="donut-center-label"><div class="pct">${notPassPct !== null ? notPassPct + '%' : '–'}</div><div class="cap">NOT PASS</div></div>`;
+  document.getElementById('donutWrapProbation').innerHTML =
+    buildMultiDonutSVG(PROB_STATUSES.map(p => ({ label: p.label, value: probRowsByStatus[p.status].length, color: CHART_COLORS[p.hex] }))) +
+    `<div class="donut-center-label"><div class="pct">${fmtNum(joined)}</div><div class="cap">JOINED</div></div>`;
 
-  const finalCards = [
-    { label: 'Pass', value: pass, sub: decided ? fmtPct(pass / decided) + ' of decided' : '–', color: 'var(--green)' },
-    { label: 'Not Pass', value: notPass, sub: decided ? fmtPct(notPass / decided) + ' of decided' : '–', color: 'var(--rose)' },
-  ];
-  document.getElementById('kpiProbationFinal').innerHTML = finalCards.map(probCardHTML).join('');
-
-  const otherCards = [
-    { label: 'Resign (during probation)', status: 'Resign', value: counts['Resign'], sub: tracked ? fmtPct(counts['Resign'] / tracked) + ' of tracked' : '–', color: 'var(--gray)' },
-    { label: 'Under Review', value: counts['Under Review'], sub: tracked ? fmtPct(counts['Under Review'] / tracked) + ' of tracked' : '–', color: 'var(--amber)' },
-    { label: 'Not Started', value: counts['Not Started'], sub: tracked ? fmtPct(counts['Not Started'] / tracked) + ' of tracked' : '–', color: 'var(--blue)' },
-    { label: 'Internal', value: counts['Internal'], sub: tracked ? fmtPct(counts['Internal'] / tracked) + ' of tracked' : '–', color: 'var(--violet)' },
-  ];
-  document.getElementById('kpiProbationOther').innerHTML = otherCards.map(probCardHTML).join('');
+  const cardsFor = group => PROB_STATUSES.filter(p => p.group === group).map(p => {
+    const n = probRowsByStatus[p.status].length;
+    return probCardHTML({ status: p.status, label: p.label, value: n, sub: pctOf(n), color: p.color });
+  }).join('');
+  document.getElementById('kpiProbationFinal').innerHTML = cardsFor('done');
+  document.getElementById('kpiProbationOther').innerHTML = cardsFor('open');
 }
 
 /* ---------------- Probation name-list popup ----------------
