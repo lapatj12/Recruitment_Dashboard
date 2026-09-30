@@ -422,3 +422,19 @@ body.page-permanent .insight-list li { font-size: 14.5px; }
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #D9D3C5; border-radius: 8px; }
+
+/* -------------------- Probation name-list popup -------------------- */
+.kpi-card.kpi-clickable { cursor: pointer; }
+.kpi-card.kpi-clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpi-card .kpi-view-link { font-size: 11.5px; font-weight: 700; color: var(--accent-dark); margin-top: 10px; opacity: .75; }
+.kpi-card.kpi-clickable:hover .kpi-view-link { opacity: 1; }
+.prob-modal { position: fixed; inset: 0; background: rgba(27,33,48,.45); z-index: 100; align-items: center; justify-content: center; }
+.prob-modal-box { background: #fff; border-radius: 16px; max-width: 920px; width: 94%; max-height: 82vh; overflow: auto; padding: 24px; }
+.prob-modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.prob-modal-head h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 18px; }
+.prob-modal-head p { margin: 0; font-size: 12.5px; color: var(--ink-faint); }
+.prob-modal-close { border: none; background: none; font-size: 22px; cursor: pointer; color: var(--ink-soft); flex: none; line-height: 1; }
+.prob-table td { vertical-align: top; }
+.prob-table .prob-name { font-weight: 600; color: var(--ink); }
+.prob-table .muted { font-size: 11.5px; color: var(--ink-faint); font-weight: 400; }
+.table-scroll { overflow-x: auto; }
