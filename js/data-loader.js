@@ -78,6 +78,9 @@ function parsePermanentWorkbook(wb) {
       position: xClean(row['Position_Announce']) || xClean(row['Position_Request']),
       channel: xClean(row['Recruitment Channel']),
       division: xClean(row['Division']), dept: xClean(row['Dept']), probation_status: xClean(row['Probation Status']),
+      // Used only by the Probation Outcome name-list popup (HR internal use)
+      emp_id: xClean(row['ID New Employee']), emp_name: xClean(row['Name New Employee']),
+      join_date: xClean(row['Join Date']), remark: xClean(row['Remark']),
       approved_date: xClean(row['Approved_Date']), target_date: xClean(row['Target_Date']), final_date: xClean(row['Final Date']),
       diff_days: xClean(row['Diff Date']), kpi: xClean(row['KPI']),
     });
@@ -144,6 +147,8 @@ function parseSubcontractWorkbook(wb) {
       return_date: xClean(row['Return Date']), diff_days: xClean(row['Diff Date']),
       interview_date: xClean(row['interviewDate']), confirm_date: xClean(row['confirmDate']),
       start_date: xClean(row['startDate']), status: xClean(row['status']), hired_age: xClean(row['Hired_Age']),
+      diff_send_to_start: xClean(row['Diff Send jd to Start Date']),
+      confirmed_date: xClean(row['Confirmed Date '] ?? row['Confirmed Date']), diff_to_confirmed: xClean(row['Diff Date to Confirmed']),
     });
   }
 
