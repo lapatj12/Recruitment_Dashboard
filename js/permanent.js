@@ -849,10 +849,15 @@ function renderSatisfactionTab() {
   destroyChart('satQuestions');
   const qLabels = ['Candidate fit (2.1)', 'Timeline (2.2)', 'Responsive to feedback (3.1)', 'Kept updated (3.2)'];
   const qKeys = ['q_quality_1', 'q_quality_2', 'q_service_1', 'q_service_2'];
-  const qPct = qKeys.map(k => { const v = avgOf(data, [k]); return v !== null ? Math.round(v / 4 * 100) : 0; });
+  const qColors = [CHART_COLORS.teal, CHART_COLORS.tealSoft, CHART_COLORS.blue, CHART_COLORS.blueSoft];
+  // Sort low → high (lowest score on top); each question keeps its own colour
+  const qRows = qKeys.map((k, i) => {
+    const v = avgOf(data, [k]);
+    return { label: qLabels[i], pct: v !== null ? Math.round(v / 4 * 100) : 0, color: qColors[i] };
+  }).sort((a, b) => a.pct - b.pct);
   charts.satQuestions = new Chart(document.getElementById('chartSatQuestions'), {
     type: 'bar',
-    data: { labels: qLabels, datasets: [{ data: qPct, backgroundColor: [CHART_COLORS.teal, CHART_COLORS.tealSoft, CHART_COLORS.blue, CHART_COLORS.blueSoft], borderRadius: 8, maxBarThickness: 34 }] },
+    data: { labels: qRows.map(q => q.label), datasets: [{ data: qRows.map(q => q.pct), backgroundColor: qRows.map(q => q.color), borderRadius: 8, maxBarThickness: 34 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, datalabels: smartBarLabels({ formatter: v => v + '%', max: 100, size: 14 }) },
