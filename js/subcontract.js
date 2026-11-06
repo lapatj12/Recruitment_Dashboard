@@ -4,8 +4,43 @@
 
 let EMP = [], REC = [], TURN = [], TURN_MONTHLY = [];
 let charts = {};
-let overviewFilters = { company: null, division: null };
+let overviewFilters = { year: null, company: null, division: null };
 let recruitFilters = { company: null, status: null, year: null };
+
+/* ----------------------------- Year helpers ------------------------------ */
+
+const NO_YEAR = '(No date)';
+
+/** Year (as a 'YYYY' string) from any date the workbook throws at us:
+ * 'YYYY-MM-DD' (real Excel dates), 'D/M/YYYY' text, Buddhist years (> 2400). */
+function yearOf(dateStr) {
+  if (!dateStr) return '';
+  const m = String(dateStr).match(/(\d{4})/);
+  if (!m) return '';
+  let y = Number(m[1]);
+  if (y > 2400) y -= 543;
+  return String(y);
+}
+/** Hire year for a Recruitment row: actual start date, else the sheet's own 'year' column. */
+function hireYear(r) { return yearOf(r.start_date) || r.year || ''; }
+function resignYear(r) { return yearOf(r.effective_date); }
+function yearOptions(list) {
+  const ys = [...new Set(list.filter(y => y && y !== NO_YEAR))].sort();
+  return list.includes(NO_YEAR) ? ys.concat(NO_YEAR) : ys;
+}
+/** Years that have monthly figures in Turnover_Graph, narrowed by a Year filter. */
+const GRAPH_YEARS = ['2025', '2026'];
+function graphYears(yf) { return yf ? GRAPH_YEARS.filter(y => yf.has(y)) : GRAPH_YEARS.slice(); }
+/** The one Turnover_Graph year to show where a chart/KPI has a single series:
+ * the latest selected year that actually has headcount data. */
+function graphYear(yf) {
+  const ys = graphYears(yf);
+  for (let i = ys.length - 1; i >= 0; i--) {
+    if (TURN_MONTHLY.some(r => r['headcount_' + ys[i]] !== '')) return ys[i];
+  }
+  return ys.length ? ys[ys.length - 1] : null;
+}
+function yearLabel(yf, fallback) { return yf ? [...yf].sort().join(', ') : fallback; }
 
 async function init() {
   const parsed = await loadSubcontractData('data/Subcontract_Overview.xlsx');
@@ -16,6 +51,7 @@ async function init() {
   EMP = EMP.filter(r => r.name);
   REC = REC.filter(r => r.position);
   TURN = TURN.filter(r => r.effective_date);
+  EMP.forEach(r => { r.start_year = yearOf(r.start_date) || NO_YEAR; });
 
   initTabs();
   initOverview();
@@ -56,6 +92,12 @@ function initOverview() {
   const bar = document.getElementById('filterBarOverview');
   const actions = bar.querySelector('.filter-actions');
 
+  const yearCtrl = buildMultiSelect(bar, 'Year',
+    yearOptions([...REC.map(hireYear), ...TURN.map(resignYear)]),
+    sel => { overviewFilters.year = sel; renderOverview(); }, v => v);
+  bar.insertBefore(yearCtrl.el, actions);
+  msOverview.year = yearCtrl;
+
   const companyCtrl = buildMultiSelect(bar, 'Company', uniqueSorted(EMP, 'company'), sel => {
     overviewFilters.company = sel;
     rebuildDivisionFilter(); // Division options narrow to only what exists for the selected company
@@ -68,7 +110,9 @@ function initOverview() {
 
   document.getElementById('resetOverview').addEventListener('click', () => {
     msOverview.company.clear();
+    msOverview.year.clear();
     overviewFilters.company = null;
+    overviewFilters.year = null;
     rebuildDivisionFilter();
     renderOverview();
   });
@@ -108,8 +152,11 @@ function renderOverview() {
   const avgAge = ages.length ? ages.reduce((s,v)=>s+v,0)/ages.length : null;
   const avgTenure = tenures.length ? tenures.reduce((s,v)=>s+v,0)/tenures.length : null;
 
-  const totalStarted = REC.filter(r => r.status === 'เริ่มงานแล้ว' && (!overviewFilters.company || overviewFilters.company.has(r.company))).length;
-  const totalResigned = TURN_MONTHLY.reduce((s, r) => s + (Number(r.resigned_2025) || 0) + (Number(r.resigned_2026) || 0), 0);
+  const yf = overviewFilters.year, cf = overviewFilters.company;
+  const totalStarted = REC.filter(r => r.status === 'เริ่มงานแล้ว'
+    && (!cf || cf.has(r.company)) && (!yf || yf.has(hireYear(r)))).length;
+  const totalResigned = turnoverWithCompany().filter(r =>
+    (!cf || cf.has(r.company)) && (!yf || yf.has(resignYear(r)))).length;
   const netChange = totalStarted - totalResigned;
 
   document.getElementById('kpiOverview').innerHTML = [
@@ -118,7 +165,7 @@ function renderOverview() {
     { label: 'HR Digest', value: fmtNum(hrd), sub: total ? fmtPct(hrd/total) : '–', color: 'var(--blue)' },
     { label: 'Average Age', value: avgAge !== null ? fmtNum(avgAge) + ' yrs' : '–', sub: 'of current employees', color: 'var(--amber)' },
     { label: 'Average Tenure', value: avgTenure !== null ? fmtNum(avgTenure) + ' yrs' : '–', sub: 'of current employees', color: 'var(--violet)' },
-    { label: 'Net Headcount Change', value: (netChange > 0 ? '+' : '') + fmtNum(netChange), sub: `${fmtNum(totalStarted)} started − ${fmtNum(totalResigned)} resigned (all-time, company-wide)`, color: netChange >= 0 ? 'var(--teal)' : 'var(--rose)' },
+    { label: 'Net Headcount Change', value: (netChange > 0 ? '+' : '') + fmtNum(netChange), sub: `${fmtNum(totalStarted)} started − ${fmtNum(totalResigned)} resigned (${yearLabel(yf, 'all years')})`, color: netChange >= 0 ? 'var(--teal)' : 'var(--rose)' },
   ].map(c => `<div class="kpi-card" style="--bar-color:${c.color}"><div class="label">${c.label}</div><div class="value tnum">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('');
   document.getElementById('kpiOverview').style.gridTemplateColumns = 'repeat(3, 1fr)';
 
@@ -162,9 +209,9 @@ function initRecruitment() {
   const bar = document.getElementById('filterBarRecruit');
   const actions = bar.querySelector('.filter-actions');
   [
+    { key: 'year', label: 'Year', field: 'year' },
     { key: 'company', label: 'Company', field: 'company' },
     { key: 'status', label: 'Status', field: 'status' },
-    { key: 'year', label: 'Year', field: 'year' },
   ].forEach(d => {
     const opts = uniqueSorted(REC, d.field);
     const ctrl = buildMultiSelect(bar, d.label, opts, sel => { recruitFilters[d.key] = sel; renderRecruitment(); }, d.field === 'status' ? tr : (v => v));
@@ -354,13 +401,18 @@ function turnoverWithCompany() {
   return _turnWithCompany;
 }
 
-let turnoverFilters = { company: null };
+let turnoverFilters = { year: null, company: null };
 let msTurnover = {};
 let turnoverActiveSubtab = 'overview';
 
 function initTurnover() {
   const bar = document.getElementById('filterBarTurnover');
   const actions = bar.querySelector('.filter-actions');
+  const yearCtrl = buildMultiSelect(bar, 'Year',
+    yearOptions([...REC.filter(r => r.status === 'เริ่มงานแล้ว').map(hireYear), ...TURN.map(resignYear)]),
+    sel => { turnoverFilters.year = sel; renderTurnoverActive(); }, v => v);
+  bar.insertBefore(yearCtrl.el, actions);
+  msTurnover.year = yearCtrl;
   const ctrl = buildMultiSelect(bar, 'Company', uniqueSorted(EMP, 'company'), sel => {
     turnoverFilters.company = sel;
     renderTurnoverActive();
@@ -369,7 +421,9 @@ function initTurnover() {
   msTurnover.company = ctrl;
   document.getElementById('resetTurnoverFilters').addEventListener('click', () => {
     msTurnover.company.clear();
+    msTurnover.year.clear();
     turnoverFilters.company = null;
+    turnoverFilters.year = null;
     renderTurnoverActive();
   });
 
@@ -401,9 +455,34 @@ function renderTurnoverActive() {
 
 /** Applies the shared Company filter to hires (REC), resigns (Turnover, with
  * inferred company) and current roster (EMP) consistently. */
-function scopedHires() { return REC.filter(r => r.status === 'เริ่มงานแล้ว' && (!turnoverFilters.company || turnoverFilters.company.has(r.company))); }
-function scopedResigns() { return turnoverWithCompany().filter(r => !turnoverFilters.company || turnoverFilters.company.has(r.company)); }
+function scopedHires() {
+  const { company, year } = turnoverFilters;
+  return REC.filter(r => r.status === 'เริ่มงานแล้ว' && (!company || company.has(r.company)) && (!year || year.has(hireYear(r))));
+}
+function scopedResigns() {
+  const { company, year } = turnoverFilters;
+  return turnoverWithCompany().filter(r => (!company || company.has(r.company)) && (!year || year.has(resignYear(r))));
+}
 function scopedEmp() { return EMP.filter(r => !turnoverFilters.company || turnoverFilters.company.has(r.company)); }
+
+/** Year-to-date turnover, same formula as the Turnover Excel:
+ * resignations in months that have a headcount ÷ average monthly headcount.
+ * Resignations come from Turnover_Graph when filled, otherwise counted from
+ * the Turnover sheet for that month (company-wide). */
+function cumulativeTurnover(gy) {
+  if (!gy) return null;
+  let resigned = 0;
+  const hcs = [];
+  TURN_MONTHLY.forEach((r, i) => {
+    const hc = r['headcount_' + gy];
+    if (hc === '' || hc === undefined) return;
+    const g = r['resigned_' + gy];
+    resigned += (g !== '' && g !== undefined) ? Number(g)
+      : TURN.filter(t => resignYear(t) === gy && monthAbbrFromDate(t.effective_date) === MONTH_ABBR[i]).length;
+    hcs.push(Number(hc));
+  });
+  return hcs.length ? resigned / (hcs.reduce((s, v) => s + v, 0) / hcs.length) : null;
+}
 
 /* ------------------------------- SUB-TAB: Overview -------------------------------- */
 
@@ -412,26 +491,26 @@ function renderTurnoverOverview() {
   const headcount = emp.length;
   const netYtd = hires.length - resigns.length;
 
-  const latestRow = [...TURN_MONTHLY].reverse().find(r => r.turnover_rate_2026 !== '');
-  const latestRate = latestRow ? Number(latestRow.turnover_rate_2026) : null;
+  const gy = graphYear(turnoverFilters.year);
+  const hcKey = 'headcount_' + gy;
+  const latestRate = cumulativeTurnover(gy);
 
   document.getElementById('kpiTurnoverOverview').innerHTML = [
     { label: 'Current Headcount', value: fmtNum(headcount), sub: 'employees', color: 'var(--blue)' },
     { label: 'Hired', value: '+' + fmtNum(hires.length), sub: 'in current filter', color: 'var(--green)' },
     { label: 'Resigned', value: fmtNum(resigns.length), sub: 'in current filter', color: 'var(--rose)' },
-    { label: 'Turnover Rate', value: latestRate !== null ? fmtPct(latestRate) : '–', sub: 'cumulative, company-wide', color: 'var(--amber)' },
+    { label: 'Turnover Rate', value: latestRate !== null ? fmtPct(latestRate) : '–', sub: gy ? `cumulative ${gy}, company-wide` : 'no monthly data for this year', color: 'var(--amber)' },
     { label: 'Net Change', value: (netYtd > 0 ? '+' : '') + fmtNum(netYtd), sub: 'hired − resigned', color: netYtd >= 0 ? 'var(--green)' : 'var(--rose)' },
   ].map(c => `<div class="kpi-card" style="--bar-color:${c.color}"><div class="label">${c.label}</div><div class="value tnum">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('');
 
-  const use2026 = TURN_MONTHLY.some(r => r.headcount_2026 !== '');
   destroyChart('hcOverview');
   charts.hcOverview = new Chart(document.getElementById('chartHcOverview'), {
     type: 'line',
     data: {
       labels: TURN_MONTHLY.map(r => tr(r.month)),
       datasets: [{
-        label: use2026 ? 'Headcount 2026' : 'Headcount 2025',
-        data: TURN_MONTHLY.map(r => { const v = use2026 ? r.headcount_2026 : r.headcount_2025; return v !== '' ? Number(v) : null; }),
+        label: gy ? 'Headcount ' + gy : 'Headcount',
+        data: TURN_MONTHLY.map(r => { const v = gy ? r[hcKey] : ''; return v !== '' && v !== undefined ? Number(v) : null; }),
         borderColor: CHART_COLORS.blue, backgroundColor: CHART_COLORS.blueSoft, fill: true, tension: .3, pointRadius: 4, spanGaps: true,
       }]
     },
@@ -486,11 +565,11 @@ function renderTurnoverOverview() {
  * both the Overview and Trend sub-tabs. Running headcount is anchored to the
  * precomputed Turnover_Graph figures (most reliable source), not re-derived. */
 function renderMonthlySummaryTable(hires, resigns, tbodyId) {
-  const use2026 = TURN_MONTHLY.some(r => r.headcount_2026 !== '');
+  const gy = graphYear(turnoverFilters.year);
   const rows = MONTH_ABBR.map((m, i) => {
     const h = hires.filter(r => monthAbbrFromDate(r.start_date) === m).length;
     const r = resigns.filter(x => monthAbbrFromDate(x.effective_date) === m).length;
-    const hc = use2026 ? TURN_MONTHLY[i]?.headcount_2026 : TURN_MONTHLY[i]?.headcount_2025;
+    const hc = gy ? TURN_MONTHLY[i]?.['headcount_' + gy] : undefined;
     return { month: m, hired: h, resigned: r, net: h - r, hc: hc !== '' && hc !== undefined ? Number(hc) : null };
   });
   const tbody = document.getElementById(tbodyId);
@@ -509,7 +588,9 @@ function renderMonthlySummaryTable(hires, resigns, tbodyId) {
 
 function renderTurnoverTrend() {
   const hires = scopedHires(), resigns = scopedResigns();
-  const hcSeries = TURN_MONTHLY.map(r => r.headcount_2026 !== '' ? Number(r.headcount_2026) : (r.headcount_2025 !== '' ? Number(r.headcount_2025) : null)).filter(v => v !== null);
+  const gy = graphYear(turnoverFilters.year);
+  const showYears = graphYears(turnoverFilters.year);
+  const hcSeries = gy ? TURN_MONTHLY.map(r => r['headcount_' + gy] !== '' ? Number(r['headcount_' + gy]) : null).filter(v => v !== null) : [];
   const latestHc = hcSeries.length ? hcSeries[hcSeries.length - 1] : null;
   const peakHc = hcSeries.length ? Math.max(...hcSeries) : null;
   const netYtd = hires.length - resigns.length;
@@ -518,8 +599,8 @@ function renderTurnoverTrend() {
   const worstMonth = resignsByMonth[worstIdx] > 0 ? MONTH_ABBR[worstIdx] : '–';
 
   document.getElementById('kpiTurnoverTrend').innerHTML = [
-    { label: 'Latest Headcount', value: latestHc !== null ? fmtNum(latestHc) : '–', sub: 'most recent month', color: 'var(--blue)' },
-    { label: 'Peak This Year', value: peakHc !== null ? fmtNum(peakHc) : '–', sub: 'highest monthly headcount', color: 'var(--blue)' },
+    { label: 'Latest Headcount', value: latestHc !== null ? fmtNum(latestHc) : '–', sub: gy ? `most recent month, ${gy}` : 'most recent month', color: 'var(--blue)' },
+    { label: gy ? `Peak ${gy}` : 'Peak This Year', value: peakHc !== null ? fmtNum(peakHc) : '–', sub: 'highest monthly headcount', color: 'var(--blue)' },
     { label: 'Net Change', value: (netYtd > 0 ? '+' : '') + fmtNum(netYtd), sub: 'hired − resigned, current filter', color: netYtd >= 0 ? 'var(--green)' : 'var(--rose)' },
     { label: 'Highest-Exit Month', value: worstMonth, sub: worstMonth !== '–' ? `${resignsByMonth[worstIdx]} resignation(s)` : 'no resignations', color: 'var(--rose)' },
   ].map(c => `<div class="kpi-card" style="--bar-color:${c.color}"><div class="label">${c.label}</div><div class="value tnum">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('');
@@ -529,11 +610,11 @@ function renderTurnoverTrend() {
     data: {
       labels: TURN_MONTHLY.map(r => tr(r.month)),
       datasets: [
-        { type: 'bar', label: '% Turnover 2025', data: TURN_MONTHLY.map(r => r.turnover_rate_2025 !== '' ? Math.round(Number(r.turnover_rate_2025) * 1000) / 10 : null), backgroundColor: CHART_COLORS.roseSoft, borderRadius: 5, yAxisID: 'y1' },
-        { type: 'bar', label: '% Turnover 2026', data: TURN_MONTHLY.map(r => r.turnover_rate_2026 !== '' ? Math.round(Number(r.turnover_rate_2026) * 1000) / 10 : null), backgroundColor: CHART_COLORS.rose, borderRadius: 5, yAxisID: 'y1' },
-        { type: 'line', label: 'Active Headcount 2025', data: TURN_MONTHLY.map(r => r.headcount_2025 !== '' ? Number(r.headcount_2025) : null), borderColor: CHART_COLORS.blueSoft, backgroundColor: CHART_COLORS.blueSoft, tension: .35, yAxisID: 'y', pointRadius: 3, spanGaps: true },
-        { type: 'line', label: 'Active Headcount 2026', data: TURN_MONTHLY.map(r => r.headcount_2026 !== '' ? Number(r.headcount_2026) : null), borderColor: CHART_COLORS.blue, backgroundColor: CHART_COLORS.blue, tension: .35, yAxisID: 'y', pointRadius: 3, spanGaps: true },
-      ]
+        { _year: '2025', type: 'bar', label: '% Turnover 2025', data: TURN_MONTHLY.map(r => r.turnover_rate_2025 !== '' ? Math.round(Number(r.turnover_rate_2025) * 1000) / 10 : null), backgroundColor: CHART_COLORS.roseSoft, borderRadius: 5, yAxisID: 'y1' },
+        { _year: '2026', type: 'bar', label: '% Turnover 2026', data: TURN_MONTHLY.map(r => r.turnover_rate_2026 !== '' ? Math.round(Number(r.turnover_rate_2026) * 1000) / 10 : null), backgroundColor: CHART_COLORS.rose, borderRadius: 5, yAxisID: 'y1' },
+        { _year: '2025', type: 'line', label: 'Active Headcount 2025', data: TURN_MONTHLY.map(r => r.headcount_2025 !== '' ? Number(r.headcount_2025) : null), borderColor: CHART_COLORS.blueSoft, backgroundColor: CHART_COLORS.blueSoft, tension: .35, yAxisID: 'y', pointRadius: 3, spanGaps: true },
+        { _year: '2026', type: 'line', label: 'Active Headcount 2026', data: TURN_MONTHLY.map(r => r.headcount_2026 !== '' ? Number(r.headcount_2026) : null), borderColor: CHART_COLORS.blue, backgroundColor: CHART_COLORS.blue, tension: .35, yAxisID: 'y', pointRadius: 3, spanGaps: true },
+      ].filter(d => showYears.includes(d._year))
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -753,15 +834,26 @@ let empSort = { key: 'name', dir: 1 };
 let empPage = 0;
 const EMP_PAGE_SIZE = 15;
 
-let empFilters = { company: null, division: null, department: null };
+let empFilters = { year: null, company: null, division: null, department: null };
 let msEmp = {};
 
 function initEmployeeTable() {
+  const bar = document.getElementById('filterBarEmployees');
+  const yearCtrl = buildMultiSelect(bar, 'Start Year', yearOptions(EMP.map(r => r.start_year)), sel => {
+    empFilters.year = sel;
+    empPage = 0;
+    renderEmployeeTable();
+  }, v => v);
+  bar.insertBefore(yearCtrl.el, bar.querySelector('.filter-actions'));
+  msEmp.year = yearCtrl;
+
   buildEmpCompanyFilter();
   rebuildEmpDivisionFilter();
   document.getElementById('resetEmpFilters').addEventListener('click', () => {
     msEmp.company.clear();
+    msEmp.year.clear();
     empFilters.company = null;
+    empFilters.year = null;
     rebuildEmpDivisionFilter();
     empPage = 0;
     renderEmployeeTable();
@@ -834,6 +926,7 @@ function rebuildEmpDepartmentFilter() {
 function renderEmployeeTable() {
   const q = document.getElementById('empSearch').value.trim().toLowerCase();
   let rows = EMP.filter(r => {
+    if (empFilters.year && !empFilters.year.has(r.start_year)) return false;
     if (empFilters.company && !empFilters.company.has(r.company)) return false;
     if (empFilters.division && !empFilters.division.has(r.division)) return false;
     if (empFilters.department && !empFilters.department.has(r.department)) return false;

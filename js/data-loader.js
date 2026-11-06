@@ -12,6 +12,11 @@
 function xClean(v) {
   if (v === null || v === undefined) return '';
   if (v instanceof Date) {
+    // SheetJS 0.18 converts Excel dates using the browser's historical timezone
+    // offset, which in Asia/Bangkok lands ~18 min before midnight (2025-01-01
+    // becomes 2024-12-31 23:42). These columns are dates only, so snap to the
+    // nearest calendar day before formatting.
+    v = new Date(v.getTime() + 12 * 3600 * 1000);
     const y = v.getFullYear(), m = String(v.getMonth() + 1).padStart(2, '0'), d = String(v.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
