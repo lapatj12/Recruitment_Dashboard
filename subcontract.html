@@ -48,7 +48,7 @@
         <summary>Where these numbers come from</summary>
         <ul>
           <li><strong>Current Total Headcount / Manpower / HR Digest / Average Age / Average Tenure</strong> — live snapshot as of the last file update, counted directly from the "รายชื่อพนักงาน Manpower" and "รายชื่อพนักงาน HRD" sheets (every current row = one employee). Not filtered by year.</li>
-          <li><strong>Net Headcount Change</strong> — "Started" is every row in the "Recruitment" sheet with status "เริ่มงานแล้ว", all-time (not limited to this year). "Resigned" is every row in the "Turnover" sheet, all-time. Both respect the Company filter above: hires by the Recruitment sheet's own company column, resignations by the employee ID prefix (MAN/HRD), falling back to an estimate from division for older-format IDs.</li>
+          <li><strong>Net Headcount Change</strong> — "Started" is every row in the "Recruitment" sheet with status "เริ่มงานแล้ว"; "Resigned" is every row in the "Turnover" sheet. Both follow the Year filter (hires by start date, resignations by effective date; no year selected = all years) and respect the Company filter above: hires by the Recruitment sheet's own company column, resignations by the employee ID prefix (MAN/HRD), falling back to an estimate from division for older-format IDs.</li>
         </ul>
       </details>
       <div class="panel-grid">
