@@ -1,56 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subcontract Overview | HR Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
-  #tab-employees .table-pager { display: none; }
+  .scroll-box { max-height: 560px; overflow: auto; }
+  .scroll-box thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: #fff; box-shadow: 0 1px 0 #e5e7eb;
+  }
 </style>
-<script>
-(function () {
-  var tbody = document.getElementById('empTableBody');
-  var next  = document.getElementById('empNext');
-  var prev  = document.getElementById('empPrev');
-  var label = document.getElementById('empPageLabel');
-  if (!tbody || !next || !prev) return;
+</head>
+<body>
 
-  var busy = false, timer = null;
+<div class="app-shell">
+  <div class="topbar">
+    <div class="brand"><span class="mark"></span> HR Analytics</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="permanent.html">Permanent Recruitment</a>
+      <a href="subcontract.html" class="active">Subcontract Overview</a>
+    </nav>
+  </div>
 
-  function isLast() {
-    if (next.disabled || next.classList.contains('disabled')) return true;
-    var m = /(\d+)\s*\/\s*(\d+)/.exec(label ? label.textContent : '');
-    return !!(m && m[1] === m[2]);
-  }
-  function isFirst() {
-    if (prev.disabled || prev.classList.contains('disabled')) return true;
-    var m = /(\d+)\s*\/\s*(\d+)/.exec(label ? label.textContent : '');
-    return !!(m && m[1] === '1');
-  }
+  <div class="page-head">
+    <div class="eyebrow">Subcontract Overview</div>
+    <h1>Subcontracted Workforce Overview (Manpower / HR Digest)</h1>
+    <p>Data source: Subcontract_Overview.xlsx — updated monthly by the HR department</p>
+  </div>
 
-  function expand() {
-    if (busy) return;
-    busy = true;
-    var guard = 0;
-    while (!isFirst() && guard++ < 500) prev.click();   // กลับไปหน้า 1 ก่อน
-    var html = tbody.innerHTML;
-    var last = html;
-    guard = 0;
-    while (!isLast() && guard++ < 500) {
-      next.click();
-      if (tbody.innerHTML === last) break;              // กันวนไม่รู้จบ
-      last = tbody.innerHTML;
-      html += last;
-    }
-    tbody.innerHTML = html;
-    observer.takeRecords();                             // ไม่ให้ตัวเองทริกเกอร์ซ้ำ
-    busy = false;
-  }
+  <div class="container">
+    <div class="tabbar" id="tabbar">
+      <button data-tab="overview" class="active">Current Overview</button>
+      <button data-tab="recruitment">Recruitment</button>
+      <button data-tab="turnover">Employee Profile &amp; Turnover</button>
+      <button data-tab="employees">Employee List</button>
+    </div>
 
-  var observer = new MutationObserver(function () {
-    if (busy) return;
-    clearTimeout(timer);
-    timer = setTimeout(expand, 60);
-  });
-  observer.observe(tbody, { childList: true });
-})();
-</script>
+    <!-- TAB 1: Current Overview -->
+    <div class="tabpane active" id="tab-overview">
+      <div class="filter-bar" id="filterBarOverview">
+        <div class="filter-actions"><button class="btn-reset" id="resetOverview">Clear filters</button></div>
+      </div>
+      <div class="kpi-grid" id="kpiOverview"></div>
+      <details class="data-source-note">
+        <summary>Where these numbers come from</summary>
+        <ul>
+          <li><strong>Current Total Headcount / Manpower / HR Digest / Average Age / Average Tenure</strong> — live snapshot as of the last file update, counted directly from the "รายชื่อพนักงาน Manpower" and "รายชื่อพนักงาน HRD" sheets (every current row = one employee). Not filtered by year.</li>
+          <li><strong>Net Headcount Change</strong> — "Started" is every row in the "Recruitment" sheet with status "เริ่มงานแล้ว"; "Resigned" is every row in the "Turnover" sheet. Both follow the Year filter (hires by start date, resignations by effective date; no year selected = all years) and respect the Company filter above: hires by the Recruitment sheet's own company column, resignations by the employee ID prefix (MAN/HRD), falling back to an estimate from division for older-format IDs.</li>
+        </ul>
+      </details>
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Headcount by Service Provider</h3>
+          <p class="panel-sub">Manpower vs HR Digest</p>
+          <div class="chart-wrap"><canvas id="chartCompany"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Headcount by Division (Top 8)</h3>
+          <p class="panel-sub">Sorted from highest to lowest</p>
+          <div class="chart-wrap"><canvas id="chartDivision"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Recruitment -->
+    <div class="tabpane" id="tab-recruitment">
+      <div class="filter-bar" id="filterBarRecruit">
+        <div class="filter-actions"><button class="btn-reset" id="resetRecruit">Clear filters</button></div>
+      </div>
+      <div class="kpi-grid" id="kpiRecruit"></div>
+
+      <div class="panel-grid">
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h3>Recruitment Funnel Overview</h3>
+          <p class="panel-sub">Requisitions → Screening → Interview → Confirmed → Started (each stage = positions that reached it, not candidate headcount)</p>
+          <div class="chart-wrap" style="height:130px;"><canvas id="chartFunnel"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel-grid" style="margin-top:16px;">
+        <div class="panel" style="grid-column: 1 / -1;">
+          <h3>Time-to-Hire by Company</h3>
+          <p class="panel-sub">Send JD → Confirmed Date, vs. the 14-day KPI target — green/blue meets target, orange/red exceeds it</p>
+          <div class="chart-wrap"><canvas id="chartLeadTime"></canvas></div>
+          <div id="leadTimeLegend" class="chart-legend-note"></div>
+        </div>
+      </div>
+
+      <div class="panel-grid" style="margin-top:16px;">
+        <div class="panel">
+          <h3>Sourcing Status by Company</h3>
+          <p class="panel-sub">Click a bar to see the position list</p>
+          <div class="chart-wrap"><canvas id="chartRecruitStatus"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>SLA Benchmark Compliance</h3>
+          <p class="panel-sub">On-KPI (≤14 days) vs Over-KPI (&gt;14 days), by service provider</p>
+          <div class="chart-wrap"><canvas id="chartSla"></canvas></div>
+        </div>
+      </div>
+      <div id="slaSummary" class="glance-row" style="margin-top:16px;"></div>
+
+      <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: Time-to-Hire and SLA Benchmark Compliance only count positions where "Confirmed Date" has actually been filled in — right now that's a small number of the total requests, since most are still blank in the source file (the formula shows an inflated placeholder using today's date until it's filled in, which isn't a real duration). These numbers will fill out as HR records more Confirmed Dates.</p>
+    </div>
+
+    <!-- TAB 3: Turnover -->
+    <div class="tabpane" id="tab-turnover">
+      <div class="filter-bar" id="filterBarTurnover">
+        <div class="filter-actions"><button class="btn-reset" id="resetTurnoverFilters">Clear filters</button></div>
+      </div>
+
+      <div class="tabbar" id="turnoverSubtabbar">
+        <button data-subtab="overview" class="active">Overview</button>
+        <button data-subtab="trend">Trend</button>
+        <button data-subtab="dept">By Department</button>
+        <button data-subtab="reasons">Reasons</button>
+        <button data-subtab="inout">In-Out List</button>
+      </div>
+
+      <!-- SUB-TAB: Overview -->
+      <div class="subtabpane active" id="turnover-overview">
+        <div class="kpi-grid" id="kpiTurnoverOverview"></div>
+        <p style="font-size:11.5px; color:var(--ink-faint); margin:-8px 0 12px;">Note: "Current Headcount" here is the live employee roster count. The Headcount chart below and the Trend tab use HR's separately-tracked monthly figures (Turnover_Graph sheet), which can differ slightly from the live roster since they're maintained independently.</p>
+        <div class="panel-grid">
+          <div class="panel" style="grid-column: 1 / -1;">
+            <h3>Headcount by Month</h3>
+            <p class="panel-sub">Active headcount, current year</p>
+            <div class="chart-wrap"><canvas id="chartHcOverview"></canvas></div>
+          </div>
+        </div>
+        <div class="panel-grid" style="margin-top:16px;">
+          <div class="panel">
+            <h3>Hired vs Resigned by Month</h3>
+            <p class="panel-sub">Current year</p>
+            <div class="chart-wrap"><canvas id="chartInOutMonth"></canvas></div>
+          </div>
+          <div class="panel">
+            <h3>Top 5 Divisions by Exits</h3>
+            <p class="panel-sub">Most resignations, current filter</p>
+            <div class="chart-wrap"><canvas id="chartTopExitDivisions"></canvas></div>
+          </div>
+        </div>
+        <div class="panel-grid" style="margin-top:16px;">
+          <div class="panel" style="grid-column: 1 / -1;">
+            <h3>Monthly Summary</h3>
+            <p class="panel-sub">Hired, resigned, net change and resulting headcount by month</p>
+            <div class="table-wrap" style="box-shadow:none;">
+              <table class="data-table" id="monthlySummaryTable">
+                <thead><tr><th>Month</th><th>Hired</th><th>Resigned</th><th>Net</th><th>Headcount</th></tr></thead>
+                <tbody id="monthlySummaryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB: Trend -->
+      <div class="subtabpane" id="turnover-trend">
+        <div class="kpi-grid" id="kpiTurnoverTrend"></div>
+        <div class="panel-grid">
+          <div class="panel" style="grid-column: 1 / -1;">
+            <h3>Headcount Trend</h3>
+            <p class="panel-sub">2025 vs 2026 comparison — bars = % turnover (right axis), line = active headcount (left axis)</p>
+            <div class="chart-wrap tall"><canvas id="chartTurnoverTrend"></canvas></div>
+          </div>
+        </div>
+        <div class="panel-grid" style="margin-top:16px;">
+          <div class="panel" style="grid-column: 1 / -1;">
+            <h3>Net Change by Month</h3>
+            <p class="panel-sub">Hired minus resigned, current year</p>
+            <div class="chart-wrap"><canvas id="chartNetChange"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB: By Department -->
+      <div class="subtabpane" id="turnover-dept">
+        <div class="panel-grid">
+          <div class="panel" style="grid-column: 1 / -1;">
+            <h3>Hired vs Resigned by Division</h3>
+            <p class="panel-sub">Current filter</p>
+            <div class="chart-wrap tall"><canvas id="chartDeptInOut"></canvas></div>
+          </div>
+        </div>
+        <div class="panel-grid" style="margin-top:16px;">
+          <div class="panel" style="grid-column: 1 / -1;">
+            <h3>Division Detail</h3>
+            <p class="panel-sub">Turnover % is Resigned ÷ (current headcount + resigned), an approximation</p>
+            <div class="table-wrap" style="box-shadow:none;">
+              <table class="data-table" id="deptDetailTable">
+                <thead><tr><th>Division</th><th>Hired</th><th>Resigned</th><th>Net</th><th>Turnover %</th></tr></thead>
+                <tbody id="deptDetailBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB: Reasons -->
+      <div class="subtabpane" id="turnover-reasons">
+        <div class="kpi-grid" id="kpiReasons"></div>
+        <div class="panel-grid">
+          <div class="panel">
+            <h3>Reasons for Leaving</h3>
+            <p class="panel-sub">Most common resignation reasons (as recorded — not yet fully standardized)</p>
+            <div class="chart-wrap tall"><canvas id="chartReasons"></canvas></div>
+          </div>
+          <div class="panel">
+            <h3>Reasons by Company</h3>
+            <p class="panel-sub">Manpower vs HR Digest, estimated from division (see note below)</p>
+            <div class="chart-wrap tall"><canvas id="chartReasonsByCompany"></canvas></div>
+          </div>
+        </div>
+        <div class="panel-grid" style="margin-top:16px;">
+          <div class="panel">
+            <h3>Avg. Tenure of Resigned Employees</h3>
+            <p class="panel-sub">Unit: years, at date of resignation</p>
+            <div class="chart-wrap"><canvas id="chartTenure"></canvas></div>
+          </div>
+        </div>
+        <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: resignation reasons are free-text and not fully standardized yet — some records have no reason recorded. Company is read from each employee ID's prefix (MAN → Manpower, HRD → HR Digest); a small number of older-format IDs that don't use this prefix fall back to an estimate from division, and divisions with no current staff to match against show as "Unknown".</p>
+      </div>
+
+      <!-- SUB-TAB: In-Out List -->
+      <div class="subtabpane" id="turnover-inout">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <input type="search" id="inoutSearch" placeholder="Search ID / position / division...">
+            <span class="count-label" id="inoutCount"></span>
+          </div>
+          <div style="overflow-x:auto;">
+          <table class="data-table" id="inoutTable">
+            <thead>
+              <tr>
+                <th data-key="date">Date</th>
+                <th data-key="type">Type</th>
+                <th data-key="employee_id">ID</th>
+                <th data-key="position">Position</th>
+                <th data-key="division">Division</th>
+                <th data-key="department">Department</th>
+              </tr>
+            </thead>
+            <tbody id="inoutTableBody"></tbody>
+          </table>
+          </div>
+          <div class="table-pager">
+            <button id="inoutPrev">← Previous</button>
+            <span id="inoutPageLabel" style="font-size:12.5px;color:var(--ink-soft);"></span>
+            <button id="inoutNext">Next →</button>
+          </div>
+        </div>
+        <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, individual names are not shown — only the internal staff ID, position and department.</p>
+      </div>
+    </div>
+
+    <!-- TAB 4: Employee list -->
+    <div class="tabpane" id="tab-employees">
+      <div class="filter-bar" id="filterBarEmployees">
+        <div class="filter-actions"><button class="btn-reset" id="resetEmpFilters">Clear filters</button></div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <input type="search" id="empSearch" placeholder="Search ID / name / position / department...">
+          <span class="count-label" id="empCount"></span>
+        </div>
+        <div class="scroll-box">
+        <table class="data-table" id="empTable">
+          <thead>
+            <tr>
+              <th data-key="company">Company</th>
+              <th data-key="employee_id">ID</th>
+              <th data-key="name">Name</th>
+              <th data-key="position">Position</th>
+              <th data-key="division">Division</th>
+              <th data-key="department">Department</th>
+              <th data-key="work_unit">Work Unit</th>
+              <th data-key="location">Location</th>
+              <th data-key="age">Age</th>
+              <th data-key="tenure_years">Tenure (yrs)</th>
+            </tr>
+          </thead>
+          <tbody id="empTableBody"></tbody>
+        </table>
+        </div>
+      </div>
+      <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, this list excludes national ID numbers, phone numbers, email addresses and salary information. The ID column is the internal staff code only.</p>
+    </div>
+
+  </div>
+
+  <div class="footer-note">Subcontract Overview Dashboard · Data source: Subcontract_Overview.xlsx</div>
+</div>
+
+<div id="posModal2" style="display:none; position:fixed; inset:0; background:rgba(27,33,48,.45); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:16px; max-width:480px; width:92%; max-height:70vh; overflow:auto; padding:22px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 id="posModalTitle2" style="margin:0; font-family:var(--font-display);"></h3>
+      <button id="posModalClose2" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--ink-soft);">&times;</button>
+    </div>
+    <ul id="posModalList2" style="margin:0; padding-left:18px; font-size:13.5px; line-height:1.9; color:var(--ink);"></ul>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/data-loader.js"></script>
 <script src="js/subcontract.js"></script>
-<style> ... </style>
-<script> ... </script>
 </body>
 </html>
