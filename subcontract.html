@@ -1,4 +1,16 @@
-<!doctype html>
+<style>
+  .scroll-box {
+    max-height: 560px;
+    overflow: auto;
+  }
+  .scroll-box thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    box-shadow: 0 1px 0 #e5e7eb;
+  }
+</style><!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -231,8 +243,8 @@
             <input type="search" id="inoutSearch" placeholder="Search ID / position / division...">
             <span class="count-label" id="inoutCount"></span>
           </div>
-          <div style="overflow-x:auto;">
-          <table class="data-table" id="inoutTable">
+          <div class="scroll-box">
+<table class="data-table" id="empTable">
             <thead>
               <tr>
                 <th data-key="date">Date</th>
@@ -285,11 +297,7 @@
           <tbody id="empTableBody"></tbody>
         </table>
         </div>
-        <div class="table-pager">
-          <button id="empPrev">← Previous</button>
-          <span id="empPageLabel" style="font-size:12.5px;color:var(--ink-soft);"></span>
-          <button id="empNext">Next →</button>
-        </div>
+        <div class="table-pager"
       </div>
       <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, this list excludes national ID numbers, phone numbers, email addresses and salary information. The ID column is the internal staff code only.</p>
     </div>
