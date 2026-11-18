@@ -1,6 +1,17 @@
-<!doctype html>
-<html lang="en">
-<head>
+<style>
+  .scroll-box {
+    max-height: 560px;
+    overflow: auto;
+  }
+  .scroll-box thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    box-shadow: 0 1px 0 #e5e7eb;
+  }
+</style>
+  <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Subcontract Overview | HR Analytics</title>
@@ -231,8 +242,8 @@
             <input type="search" id="inoutSearch" placeholder="Search ID / position / division...">
             <span class="count-label" id="inoutCount"></span>
           </div>
-          <div style="overflow-x:auto;">
-          <table class="data-table" id="inoutTable">
+          <div class="scroll-box">
+<table class="data-table" id="empTable">
             <thead>
               <tr>
                 <th data-key="date">Date</th>
@@ -245,11 +256,6 @@
             </thead>
             <tbody id="inoutTableBody"></tbody>
           </table>
-          </div>
-          <div class="table-pager">
-            <button id="inoutPrev">← Previous</button>
-            <span id="inoutPageLabel" style="font-size:12.5px;color:var(--ink-soft);"></span>
-            <button id="inoutNext">Next →</button>
           </div>
         </div>
         <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, individual names are not shown — only the internal staff ID, position and department.</p>
