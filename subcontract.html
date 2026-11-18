@@ -1,17 +1,6 @@
-<style>
-  .scroll-box {
-    max-height: 560px;
-    overflow: auto;
-  }
-  .scroll-box thead th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background: #fff;
-    box-shadow: 0 1px 0 #e5e7eb;
-  }
-</style>
-  <head>
+<!doctype html>
+<html lang="en">
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Subcontract Overview | HR Analytics</title>
@@ -22,6 +11,13 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  .scroll-box { max-height: 560px; overflow: auto; }
+  .scroll-box thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: #fff; box-shadow: 0 1px 0 #e5e7eb;
+  }
+</style>
 </head>
 <body>
 
@@ -242,8 +238,8 @@
             <input type="search" id="inoutSearch" placeholder="Search ID / position / division...">
             <span class="count-label" id="inoutCount"></span>
           </div>
-          <div class="scroll-box">
-<table class="data-table" id="empTable">
+          <div style="overflow-x:auto;">
+          <table class="data-table" id="inoutTable">
             <thead>
               <tr>
                 <th data-key="date">Date</th>
@@ -256,6 +252,11 @@
             </thead>
             <tbody id="inoutTableBody"></tbody>
           </table>
+          </div>
+          <div class="table-pager">
+            <button id="inoutPrev">← Previous</button>
+            <span id="inoutPageLabel" style="font-size:12.5px;color:var(--ink-soft);"></span>
+            <button id="inoutNext">Next →</button>
           </div>
         </div>
         <p style="font-size:11.5px; color:var(--ink-faint); margin-top:10px;">Note: for data privacy, individual names are not shown — only the internal staff ID, position and department.</p>
@@ -272,7 +273,7 @@
           <input type="search" id="empSearch" placeholder="Search ID / name / position / department...">
           <span class="count-label" id="empCount"></span>
         </div>
-        <div style="overflow-x:auto;">
+        <div class="scroll-box">
         <table class="data-table" id="empTable">
           <thead>
             <tr>
