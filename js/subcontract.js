@@ -831,8 +831,6 @@ function renderInOutTable() {
 /* ------------------------- TAB 4: Employee list -------------------------- */
 
 let empSort = { key: 'name', dir: 1 };
-let empPage = 0;
-const EMP_PAGE_SIZE = 15;
 
 let empFilters = { year: null, company: null, division: null, department: null };
 let msEmp = {};
@@ -841,7 +839,6 @@ function initEmployeeTable() {
   const bar = document.getElementById('filterBarEmployees');
   const yearCtrl = buildMultiSelect(bar, 'Start Year', yearOptions(EMP.map(r => r.start_year)), sel => {
     empFilters.year = sel;
-    empPage = 0;
     renderEmployeeTable();
   }, v => v);
   bar.insertBefore(yearCtrl.el, bar.querySelector('.filter-actions'));
@@ -855,11 +852,10 @@ function initEmployeeTable() {
     empFilters.company = null;
     empFilters.year = null;
     rebuildEmpDivisionFilter();
-    empPage = 0;
     renderEmployeeTable();
   });
 
-  document.getElementById('empSearch').addEventListener('input', () => { empPage = 0; renderEmployeeTable(); });
+  document.getElementById('empSearch').addEventListener('input', () => { renderEmployeeTable(); });
   document.querySelectorAll('#empTable thead th').forEach(th => {
     th.addEventListener('click', () => {
       const key = th.dataset.key;
@@ -867,8 +863,6 @@ function initEmployeeTable() {
       renderEmployeeTable();
     });
   });
-  document.getElementById('empPrev').addEventListener('click', () => { if (empPage > 0) { empPage--; renderEmployeeTable(); } });
-  document.getElementById('empNext').addEventListener('click', () => { empPage++; renderEmployeeTable(); });
   renderEmployeeTable();
 }
 
@@ -878,7 +872,6 @@ function buildEmpCompanyFilter() {
   const ctrl = buildMultiSelect(bar, 'Company', uniqueSorted(EMP, 'company'), sel => {
     empFilters.company = sel;
     rebuildEmpDivisionFilter();
-    empPage = 0;
     renderEmployeeTable();
   });
   bar.insertBefore(ctrl.el, actions);
@@ -898,7 +891,6 @@ function rebuildEmpDivisionFilter() {
   const ctrl = buildMultiSelect(bar, 'Division', uniqueSorted(scoped, 'division'), sel => {
     empFilters.division = sel;
     rebuildEmpDepartmentFilter();
-    empPage = 0;
     renderEmployeeTable();
   }, tr);
   bar.insertBefore(ctrl.el, actions);
@@ -916,7 +908,6 @@ function rebuildEmpDepartmentFilter() {
   empFilters.department = null;
   const ctrl = buildMultiSelect(bar, 'Department', uniqueSorted(scoped, 'department'), sel => {
     empFilters.department = sel;
-    empPage = 0;
     renderEmployeeTable();
   }, tr);
   bar.insertBefore(ctrl.el, actions);
@@ -942,9 +933,8 @@ function renderEmployeeTable() {
     return 0;
   });
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / EMP_PAGE_SIZE));
-  empPage = Math.min(empPage, totalPages - 1);
-  const pageRows = rows.slice(empPage * EMP_PAGE_SIZE, (empPage + 1) * EMP_PAGE_SIZE);
+  // Show every row (the table box scrolls) instead of paging
+  const pageRows = rows;
 
   document.getElementById('empTableBody').innerHTML = pageRows.map(r => {
     const pillColor = r.company === 'Manpower' ? 'var(--teal-soft);color:var(--teal)' : 'var(--blue-soft);color:var(--blue)';
@@ -963,9 +953,6 @@ function renderEmployeeTable() {
   }).join('');
 
   document.getElementById('empCount').textContent = `${rows.length.toLocaleString('en-US')} records`;
-  document.getElementById('empPageLabel').textContent = `Page ${empPage + 1} / ${totalPages}`;
-  document.getElementById('empPrev').disabled = empPage === 0;
-  document.getElementById('empNext').disabled = empPage >= totalPages - 1;
 }
 
 init();
